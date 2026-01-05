@@ -27,7 +27,8 @@ const navigation = [
 
 export default function MainLayout() {
   const location = useLocation();
-  const lowStockAlerts = useRestaurantStore((state) => state.getLowStockAlerts());
+  const getLowStockAlerts = useRestaurantStore((state) => state.getLowStockAlerts);
+  const lowStockAlerts = getLowStockAlerts();
 
   return (
     <div className="flex h-screen overflow-hidden">
