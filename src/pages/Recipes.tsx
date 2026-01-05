@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, BookOpen, DollarSign } from 'lucide-react';
+import { Plus, X, BookOpen, Banknote } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,13 @@ import { toast } from 'sonner';
 import { RecipeIngredient } from '@/types/restaurant';
 
 export default function Recipes() {
-  const { menuItems, menuCategories, ingredients, updateMenuItem, calculateRecipeCost } = useRestaurantStore();
+  const { menuItems, menuCategories, ingredients, settings, updateMenuItem, calculateRecipeCost } = useRestaurantStore();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [recipe, setRecipe] = useState<RecipeIngredient[]>([]);
   const [newIngredient, setNewIngredient] = useState({ ingredientId: '', quantity: '' });
+
+  const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
   const selectedItem = menuItems.find((item) => item.id === selectedItemId);
 
@@ -99,15 +101,15 @@ export default function Recipes() {
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg bg-muted/50 p-2">
                     <p className="text-xs text-muted-foreground">Price</p>
-                    <p className="font-semibold">${item.price.toFixed(2)}</p>
+                    <p className="font-semibold">{formatPrice(item.price)}</p>
                   </div>
                   <div className="rounded-lg bg-muted/50 p-2">
                     <p className="text-xs text-muted-foreground">Cost</p>
-                    <p className="font-semibold">${recipeCost.toFixed(2)}</p>
+                    <p className="font-semibold">{formatPrice(recipeCost)}</p>
                   </div>
                   <div className="rounded-lg bg-muted/50 p-2">
                     <p className="text-xs text-muted-foreground">Margin</p>
-                    <p className={`font-semibold ${profitMargin >= 70 ? 'text-success' : 'text-warning'}`}>
+                    <p className={`font-semibold ${profitMargin >= 50 ? 'text-success' : 'text-warning'}`}>
                       {profitMargin.toFixed(0)}%
                     </p>
                   </div>
@@ -172,7 +174,7 @@ export default function Recipes() {
                     .filter((ing) => !recipe.some((r) => r.ingredientId === ing.id))
                     .map((ing) => (
                       <SelectItem key={ing.id} value={ing.id}>
-                        {ing.name} (${ing.costPerUnit.toFixed(2)}/{ing.unit})
+                        {ing.name} ({formatPrice(ing.costPerUnit)}/{ing.unit})
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -234,14 +236,14 @@ export default function Recipes() {
             <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-primary" />
+                  <Banknote className="h-5 w-5 text-primary" />
                   <span className="font-medium">Total Recipe Cost</span>
                 </div>
-                <span className="text-2xl font-bold text-primary">${getRecipeCost().toFixed(2)}</span>
+                <span className="text-2xl font-bold text-primary">{formatPrice(getRecipeCost())}</span>
               </div>
               {selectedItem && (
                 <div className="mt-2 flex justify-between text-sm text-muted-foreground">
-                  <span>Selling Price: ${selectedItem.price.toFixed(2)}</span>
+                  <span>Selling Price: {formatPrice(selectedItem.price)}</span>
                   <span>
                     Profit Margin:{' '}
                     <span className={getRecipeCost() < selectedItem.price ? 'text-success' : 'text-destructive'}>

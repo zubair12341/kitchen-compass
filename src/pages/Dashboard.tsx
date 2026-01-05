@@ -1,12 +1,12 @@
 import {
-  DollarSign,
-  ShoppingCart,
   TrendingUp,
   AlertTriangle,
   Package,
   UtensilsCrossed,
   Clock,
   ArrowUpRight,
+  ShoppingCart,
+  Banknote,
 } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
-  const { orders, menuItems, ingredients, getLowStockAlerts, getTodaysSales } = useRestaurantStore();
+  const { orders, menuItems, ingredients, settings, getLowStockAlerts, getTodaysSales } = useRestaurantStore();
   const lowStockAlerts = getLowStockAlerts();
   const todaysSales = getTodaysSales();
 
@@ -23,12 +23,14 @@ export default function Dashboard() {
   const totalIngredients = ingredients.length;
   const totalMenuItems = menuItems.length;
 
+  const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Welcome back! Here's an overview of your restaurant today.</p>
+        <p className="page-subtitle">خوش آمدید! Welcome back! Here's your restaurant overview.</p>
       </div>
 
       {/* Stats Grid */}
@@ -38,11 +40,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium opacity-90">Today's Revenue</p>
-              <h3 className="mt-2 text-3xl font-bold">${todaysSales.revenue.toFixed(2)}</h3>
+              <h3 className="mt-2 text-3xl font-bold">{formatPrice(todaysSales.revenue)}</h3>
               <p className="mt-1 text-sm opacity-75">{todaysSales.orders} orders</p>
             </div>
             <div className="rounded-xl bg-white/20 p-3">
-              <DollarSign className="h-6 w-6" />
+              <Banknote className="h-6 w-6" />
             </div>
           </div>
         </div>
@@ -52,7 +54,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium opacity-90">Today's Profit</p>
-              <h3 className="mt-2 text-3xl font-bold">${todaysSales.profit.toFixed(2)}</h3>
+              <h3 className="mt-2 text-3xl font-bold">{formatPrice(todaysSales.profit)}</h3>
               <p className="mt-1 text-sm opacity-75">After ingredient costs</p>
             </div>
             <div className="rounded-xl bg-white/20 p-3">
@@ -188,11 +190,12 @@ export default function Dashboard() {
                         <p className="font-medium">{order.orderNumber}</p>
                         <p className="text-sm text-muted-foreground">
                           {order.items.length} items • {order.orderType}
+                          {order.waiterName && ` • ${order.waiterName}`}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">${order.total.toFixed(2)}</p>
+                      <p className="font-semibold">{formatPrice(order.total)}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(order.createdAt), 'HH:mm')}
                       </p>

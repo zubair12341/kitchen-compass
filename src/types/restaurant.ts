@@ -45,6 +45,21 @@ export interface CartItem {
   notes?: string;
 }
 
+export interface Table {
+  id: string;
+  number: number;
+  capacity: number;
+  status: 'available' | 'occupied';
+  currentOrderId?: string;
+}
+
+export interface Waiter {
+  id: string;
+  name: string;
+  phone: string;
+  isActive: boolean;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -54,10 +69,13 @@ export interface Order {
   discount: number;
   total: number;
   paymentMethod: 'cash' | 'card' | 'mobile';
-  status: 'completed' | 'cancelled' | 'refunded';
+  status: 'pending' | 'completed' | 'cancelled' | 'refunded';
   customerName?: string;
-  tableNumber?: string;
-  orderType: 'dine-in' | 'takeaway' | 'delivery';
+  tableId?: string;
+  tableNumber?: number;
+  waiterId?: string;
+  waiterName?: string;
+  orderType: 'dine-in' | 'online' | 'takeaway';
   createdAt: Date;
   completedAt?: Date;
 }
@@ -109,4 +127,13 @@ export interface DailySales {
 export interface IngredientCategory {
   id: string;
   name: string;
+}
+
+export interface RestaurantSettings {
+  name: string;
+  address: string;
+  phone: string;
+  taxRate: number;
+  currency: string;
+  currencySymbol: string;
 }
