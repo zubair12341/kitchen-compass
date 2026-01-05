@@ -1,34 +1,82 @@
-import { useState } from 'react';
-import { Search, Plus, Minus, X, CreditCard, Banknote, Smartphone, User, Hash } from 'lucide-react';
+import { useState, useRef } from 'react';
+import {
+  Search,
+  Plus,
+  Minus,
+  X,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  User,
+  Printer,
+  ChefHat,
+  UtensilsCrossed,
+  ShoppingBag,
+  Wifi,
+  ArrowLeft,
+  Receipt,
+  Users,
+} from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Order } from '@/types/restaurant';
+
+type OrderTypeSelection = 'dine-in' | 'online' | 'takeaway' | null;
 
 export default function POS() {
   const {
     menuItems,
     menuCategories,
     cart,
+    tables,
+    waiters,
+    settings,
+    currentEditingOrderId,
     addToCart,
     updateCartItemQuantity,
     removeFromCart,
     clearCart,
     completeOrder,
+    updateOrder,
+    loadOrderToCart,
+    getTableOrder,
+    freeTable,
+    orders,
   } = useRestaurantStore();
 
+  const [orderType, setOrderType] = useState<OrderTypeSelection>(null);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showKitchenInvoice, setShowKitchenInvoice] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
-  const [orderType, setOrderType] = useState<'dine-in' | 'takeaway' | 'delivery'>('dine-in');
   const [customerName, setCustomerName] = useState('');
-  const [tableNumber, setTableNumber] = useState('');
+  const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [discount, setDiscount] = useState(0);
+  const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const isEditingExistingOrder = !!currentEditingOrderId;
 
   // Filter menu items
   const filteredItems = menuItems.filter((item) => {
@@ -39,41 +87,399 @@ export default function POS() {
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
-  const tax = subtotal * 0.1;
+  const tax = subtotal * (settings.taxRate / 100);
   const total = subtotal + tax - discount;
+
+  const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
+
+  const handleTableSelect = (tableId: string) => {
+    const table = tables.find((t) => t.id === tableId);
+    if (!table) return;
+
+    setSelectedTableId(tableId);
+
+    if (table.status === 'occupied' && table.currentOrderId) {
+      // Load existing order for editing
+      loadOrderToCart(table.currentOrderId);
+      toast.info('Editing existing order for Table ' + table.number);
+    }
+  };
+
+  const handleBackToOrderType = () => {
+    clearCart();
+    setOrderType(null);
+    setSelectedTableId(null);
+    setCustomerName('');
+    setSelectedWaiterId('');
+    setDiscount(0);
+  };
 
   const handleCheckout = () => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
     }
+    if (orderType === 'dine-in' && !selectedWaiterId) {
+      toast.error('Please select a waiter');
+      return;
+    }
     setShowCheckout(true);
   };
 
   const handleCompleteOrder = () => {
-    const order = completeOrder({
-      paymentMethod,
-      customerName: customerName || undefined,
-      tableNumber: tableNumber || undefined,
-      orderType,
-      discount,
-    });
+    let order: Order | null = null;
+
+    if (isEditingExistingOrder && currentEditingOrderId) {
+      order = updateOrder(currentEditingOrderId, {
+        paymentMethod,
+        customerName: customerName || undefined,
+        tableId: selectedTableId || undefined,
+        waiterId: selectedWaiterId || undefined,
+        orderType: orderType!,
+        discount,
+      });
+      toast.success('Order updated successfully!');
+    } else {
+      order = completeOrder({
+        paymentMethod,
+        customerName: customerName || undefined,
+        tableId: selectedTableId || undefined,
+        waiterId: selectedWaiterId || undefined,
+        orderType: orderType!,
+        discount,
+      });
+      if (order) {
+        toast.success(`Order ${order.orderNumber} placed!`, {
+          description: `Total: ${formatPrice(order.total)}`,
+        });
+      }
+    }
 
     if (order) {
-      toast.success(`Order ${order.orderNumber} completed!`, {
-        description: `Total: $${order.total.toFixed(2)}`,
-      });
+      setCompletedOrder(order);
       setShowCheckout(false);
       setCustomerName('');
-      setTableNumber('');
       setDiscount(0);
     }
   };
 
+  const handleSettleAndClose = () => {
+    if (completedOrder && completedOrder.tableId) {
+      // Update order status to completed and free the table
+      const store = useRestaurantStore.getState();
+      store.freeTable(completedOrder.tableId);
+      useRestaurantStore.setState((state) => ({
+        orders: state.orders.map((o) =>
+          o.id === completedOrder.id
+            ? { ...o, status: 'completed' as const, completedAt: new Date() }
+            : o
+        ),
+      }));
+      toast.success('Order completed and table freed!');
+    }
+    setCompletedOrder(null);
+    handleBackToOrderType();
+  };
+
+  const handlePrintKitchenInvoice = () => {
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+    setShowKitchenInvoice(true);
+  };
+
+  const printKitchenInvoice = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to print');
+      return;
+    }
+
+    const waiter = waiters.find((w) => w.id === selectedWaiterId);
+    const table = tables.find((t) => t.id === selectedTableId);
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Kitchen Order</title>
+          <style>
+            body { font-family: 'Courier New', monospace; padding: 20px; max-width: 300px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .header h1 { font-size: 18px; margin: 0; }
+            .header p { font-size: 12px; margin: 5px 0; }
+            .info { margin: 10px 0; font-size: 14px; }
+            .info-row { display: flex; justify-content: space-between; margin: 5px 0; }
+            .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0; }
+            .item { display: flex; justify-content: space-between; margin: 8px 0; font-size: 14px; }
+            .item-name { font-weight: bold; }
+            .item-qty { font-size: 18px; font-weight: bold; }
+            .notes { font-size: 12px; color: #666; margin-left: 10px; }
+            .footer { text-align: center; font-size: 12px; margin-top: 10px; }
+            @media print { body { margin: 0; padding: 10px; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>🍳 KITCHEN ORDER</h1>
+            <p>${settings.name}</p>
+            <p>${new Date().toLocaleString('en-PK')}</p>
+          </div>
+          <div class="info">
+            <div class="info-row"><strong>Order Type:</strong> <span>${orderType?.toUpperCase()}</span></div>
+            ${table ? `<div class="info-row"><strong>Table:</strong> <span>#${table.number}</span></div>` : ''}
+            ${waiter ? `<div class="info-row"><strong>Waiter:</strong> <span>${waiter.name}</span></div>` : ''}
+            ${customerName ? `<div class="info-row"><strong>Customer:</strong> <span>${customerName}</span></div>` : ''}
+          </div>
+          <div class="items">
+            ${cart
+              .map(
+                (item) => `
+              <div class="item">
+                <span class="item-name">${item.menuItem.name}</span>
+                <span class="item-qty">x${item.quantity}</span>
+              </div>
+              ${item.notes ? `<div class="notes">Note: ${item.notes}</div>` : ''}
+            `
+              )
+              .join('')}
+          </div>
+          <div class="footer">
+            <p>*** KITCHEN COPY ***</p>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.print();
+    setShowKitchenInvoice(false);
+    toast.success('Kitchen invoice printed!');
+  };
+
+  const printCustomerInvoice = () => {
+    if (!completedOrder) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to print');
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice - ${completedOrder.orderNumber}</title>
+          <style>
+            body { font-family: 'Courier New', monospace; padding: 20px; max-width: 300px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            .header h1 { font-size: 16px; margin: 0; }
+            .header p { font-size: 11px; margin: 3px 0; }
+            .info { margin: 10px 0; font-size: 12px; }
+            .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
+            .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0; }
+            .item { display: flex; justify-content: space-between; margin: 5px 0; font-size: 12px; }
+            .totals { margin: 10px 0; font-size: 12px; }
+            .total-row { display: flex; justify-content: space-between; margin: 3px 0; }
+            .grand-total { font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; }
+            .footer { text-align: center; font-size: 10px; margin-top: 15px; }
+            @media print { body { margin: 0; padding: 10px; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${settings.name}</h1>
+            <p>${settings.address}</p>
+            <p>Tel: ${settings.phone}</p>
+            <p>================================</p>
+            <p>Order: ${completedOrder.orderNumber}</p>
+            <p>${new Date(completedOrder.createdAt).toLocaleString('en-PK')}</p>
+          </div>
+          <div class="info">
+            <div class="info-row"><span>Type:</span> <span>${completedOrder.orderType.toUpperCase()}</span></div>
+            ${completedOrder.tableNumber ? `<div class="info-row"><span>Table:</span> <span>#${completedOrder.tableNumber}</span></div>` : ''}
+            ${completedOrder.waiterName ? `<div class="info-row"><span>Waiter:</span> <span>${completedOrder.waiterName}</span></div>` : ''}
+            ${completedOrder.customerName ? `<div class="info-row"><span>Customer:</span> <span>${completedOrder.customerName}</span></div>` : ''}
+          </div>
+          <div class="items">
+            ${completedOrder.items
+              .map(
+                (item) => `
+              <div class="item">
+                <span>${item.quantity}x ${item.menuItemName}</span>
+                <span>${settings.currencySymbol} ${item.total.toLocaleString()}</span>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+          <div class="totals">
+            <div class="total-row"><span>Subtotal:</span> <span>${settings.currencySymbol} ${completedOrder.subtotal.toLocaleString()}</span></div>
+            <div class="total-row"><span>GST (${settings.taxRate}%):</span> <span>${settings.currencySymbol} ${completedOrder.tax.toLocaleString()}</span></div>
+            ${completedOrder.discount > 0 ? `<div class="total-row"><span>Discount:</span> <span>-${settings.currencySymbol} ${completedOrder.discount.toLocaleString()}</span></div>` : ''}
+            <div class="total-row grand-total"><span>TOTAL:</span> <span>${settings.currencySymbol} ${completedOrder.total.toLocaleString()}</span></div>
+          </div>
+          <div class="footer">
+            <p>Payment: ${completedOrder.paymentMethod.toUpperCase()}</p>
+            <p>================================</p>
+            <p>Thank you for dining with us!</p>
+            <p>شکریہ - Shukriya!</p>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  // Order Type Selection Screen
+  if (!orderType) {
+    return (
+      <div className="flex h-[calc(100vh-7rem)] items-center justify-center animate-fade-in">
+        <div className="text-center space-y-8">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-foreground">Select Order Type</h1>
+            <p className="text-muted-foreground mt-2">Choose how you want to process this order</p>
+          </div>
+          <div className="grid grid-cols-3 gap-6">
+            <button
+              onClick={() => setOrderType('dine-in')}
+              className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
+            >
+              <div className="p-4 rounded-full bg-orange-100 text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                <UtensilsCrossed className="h-10 w-10" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Dine-In</h3>
+                <p className="text-sm text-muted-foreground">Customers eating at restaurant</p>
+              </div>
+            </button>
+            <button
+              onClick={() => setOrderType('online')}
+              className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
+            >
+              <div className="p-4 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                <Wifi className="h-10 w-10" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Online</h3>
+                <p className="text-sm text-muted-foreground">Online delivery orders</p>
+              </div>
+            </button>
+            <button
+              onClick={() => setOrderType('takeaway')}
+              className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
+            >
+              <div className="p-4 rounded-full bg-green-100 text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors">
+                <ShoppingBag className="h-10 w-10" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Take-Away</h3>
+                <p className="text-sm text-muted-foreground">Customer picks up order</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Table Selection for Dine-In
+  if (orderType === 'dine-in' && !selectedTableId) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleBackToOrderType}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-display font-bold">Select Table</h1>
+            <p className="text-muted-foreground">Green = Available, Red = Occupied</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
+          {tables.map((table) => (
+            <button
+              key={table.id}
+              onClick={() => handleTableSelect(table.id)}
+              className={cn(
+                'flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all',
+                table.status === 'available'
+                  ? 'bg-green-50 border-green-500 text-green-700 hover:bg-green-100'
+                  : 'bg-red-50 border-red-500 text-red-700 hover:bg-red-100'
+              )}
+            >
+              <span className="text-2xl font-bold">{table.number}</span>
+              <span className="text-xs mt-1">{table.capacity} seats</span>
+              <span className="text-xs font-medium mt-1">
+                {table.status === 'available' ? 'Available' : 'Occupied'}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Main POS Screen
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-6 animate-fade-in">
       {/* Left Panel - Menu */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header with Back Button */}
+        <div className="mb-4 flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleBackToOrderType}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  'px-3 py-1 rounded-full text-sm font-medium',
+                  orderType === 'dine-in' && 'bg-orange-100 text-orange-700',
+                  orderType === 'online' && 'bg-blue-100 text-blue-700',
+                  orderType === 'takeaway' && 'bg-green-100 text-green-700'
+                )}
+              >
+                {orderType === 'dine-in' && `Dine-In - Table ${tables.find((t) => t.id === selectedTableId)?.number}`}
+                {orderType === 'online' && 'Online Order'}
+                {orderType === 'takeaway' && 'Take-Away'}
+              </span>
+              {isEditingExistingOrder && (
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">
+                  Editing Order
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Waiter Selection for Dine-In */}
+        {orderType === 'dine-in' && (
+          <div className="mb-4">
+            <Select value={selectedWaiterId} onValueChange={setSelectedWaiterId}>
+              <SelectTrigger className="w-64">
+                <Users className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Select Waiter" />
+              </SelectTrigger>
+              <SelectContent>
+                {waiters
+                  .filter((w) => w.isActive)
+                  .map((waiter) => (
+                    <SelectItem key={waiter.id} value={waiter.id}>
+                      {waiter.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Search and Categories */}
         <div className="mb-4 space-y-4">
           <div className="relative">
@@ -131,7 +537,7 @@ export default function POS() {
                     {menuCategories.find((c) => c.id === item.categoryId)?.icon || '🍽️'}
                   </div>
                   <h4 className="font-medium text-sm text-center line-clamp-2">{item.name}</h4>
-                  <p className="text-sm font-bold text-primary mt-1">${item.price.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-primary mt-1">{formatPrice(item.price)}</p>
                 </button>
               );
             })}
@@ -144,9 +550,16 @@ export default function POS() {
         {/* Cart Header */}
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Current Order</h2>
+            <h2 className="text-lg font-semibold">
+              {isEditingExistingOrder ? 'Edit Order' : 'Current Order'}
+            </h2>
             {cart.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearCart} className="text-destructive hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearCart}
+                className="text-destructive hover:text-destructive"
+              >
                 Clear
               </Button>
             )}
@@ -170,7 +583,7 @@ export default function POS() {
                 <div key={item.menuItem.id} className="cart-item">
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-sm truncate">{item.menuItem.name}</h4>
-                    <p className="text-sm text-muted-foreground">${item.menuItem.price.toFixed(2)} each</p>
+                    <p className="text-sm text-muted-foreground">{formatPrice(item.menuItem.price)} each</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -210,32 +623,38 @@ export default function POS() {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>{formatPrice(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Tax (10%)</span>
-              <span>${tax.toFixed(2)}</span>
+              <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
+              <span>{formatPrice(tax)}</span>
             </div>
             {discount > 0 && (
-              <div className="flex justify-between text-sm text-success">
+              <div className="flex justify-between text-sm text-green-600">
                 <span>Discount</span>
-                <span>-${discount.toFixed(2)}</span>
+                <span>-{formatPrice(discount)}</span>
               </div>
             )}
             <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{formatPrice(total)}</span>
             </div>
           </div>
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleCheckout}
-            disabled={cart.length === 0}
-          >
-            Proceed to Checkout
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handlePrintKitchenInvoice}
+              disabled={cart.length === 0}
+            >
+              <ChefHat className="h-4 w-4 mr-2" />
+              Kitchen
+            </Button>
+            <Button className="flex-1" onClick={handleCheckout} disabled={cart.length === 0}>
+              {isEditingExistingOrder ? 'Update Order' : 'Checkout'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -243,76 +662,35 @@ export default function POS() {
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Complete Order</DialogTitle>
+            <DialogTitle>{isEditingExistingOrder ? 'Update Order' : 'Complete Order'}</DialogTitle>
           </DialogHeader>
-          
-          <div className="space-y-6 py-4">
-            {/* Order Type */}
-            <div className="space-y-3">
-              <Label>Order Type</Label>
-              <RadioGroup
-                value={orderType}
-                onValueChange={(value: 'dine-in' | 'takeaway' | 'delivery') => setOrderType(value)}
-                className="grid grid-cols-3 gap-2"
-              >
-                {['dine-in', 'takeaway', 'delivery'].map((type) => (
-                  <Label
-                    key={type}
-                    className={cn(
-                      'flex flex-col items-center justify-center rounded-lg border-2 p-3 cursor-pointer transition-all',
-                      orderType === type ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                    )}
-                  >
-                    <RadioGroupItem value={type} className="sr-only" />
-                    <span className="text-sm font-medium capitalize">{type}</span>
-                  </Label>
-                ))}
-              </RadioGroup>
-            </div>
 
+          <div className="space-y-6 py-4">
             {/* Customer Info */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="customer">Customer Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="customer"
-                    placeholder="Optional"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="customer"
+                  placeholder="Optional"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-              {orderType === 'dine-in' && (
-                <div className="space-y-2">
-                  <Label htmlFor="table">Table Number</Label>
-                  <div className="relative">
-                    <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="table"
-                      placeholder="Optional"
-                      value={tableNumber}
-                      onChange={(e) => setTableNumber(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Discount */}
             <div className="space-y-2">
-              <Label htmlFor="discount">Discount ($)</Label>
+              <Label htmlFor="discount">Discount ({settings.currencySymbol})</Label>
               <Input
                 id="discount"
                 type="number"
                 min="0"
-                step="0.01"
                 value={discount || ''}
                 onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
+                placeholder="0"
               />
             </div>
 
@@ -352,7 +730,7 @@ export default function POS() {
                 >
                   <RadioGroupItem value="mobile" className="sr-only" />
                   <Smartphone className="h-6 w-6" />
-                  <span className="text-sm font-medium">Mobile</span>
+                  <span className="text-sm font-medium">JazzCash</span>
                 </Label>
               </RadioGroup>
             </div>
@@ -361,21 +739,21 @@ export default function POS() {
             <div className="rounded-lg bg-muted/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>{formatPrice(subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>Tax (10%)</span>
-                <span>${tax.toFixed(2)}</span>
+                <span>GST ({settings.taxRate}%)</span>
+                <span>{formatPrice(tax)}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-sm text-success">
+                <div className="flex justify-between text-sm text-green-600">
                   <span>Discount</span>
-                  <span>-${discount.toFixed(2)}</span>
+                  <span>-{formatPrice(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold border-t border-border pt-2">
                 <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>{formatPrice(total)}</span>
               </div>
             </div>
           </div>
@@ -385,8 +763,118 @@ export default function POS() {
               Cancel
             </Button>
             <Button onClick={handleCompleteOrder}>
-              Complete Order (${total.toFixed(2)})
+              {isEditingExistingOrder ? 'Update' : 'Place Order'} ({formatPrice(total)})
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Kitchen Invoice Dialog */}
+      <Dialog open={showKitchenInvoice} onOpenChange={setShowKitchenInvoice}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Kitchen Invoice Preview</DialogTitle>
+          </DialogHeader>
+          <div ref={printRef} className="space-y-4 py-4 font-mono text-sm">
+            <div className="text-center border-b-2 border-dashed pb-3">
+              <p className="text-lg font-bold">🍳 KITCHEN ORDER</p>
+              <p className="text-xs">{settings.name}</p>
+              <p className="text-xs">{new Date().toLocaleString('en-PK')}</p>
+            </div>
+            <div className="space-y-1">
+              <p>
+                <strong>Type:</strong> {orderType?.toUpperCase()}
+              </p>
+              {selectedTableId && (
+                <p>
+                  <strong>Table:</strong> #{tables.find((t) => t.id === selectedTableId)?.number}
+                </p>
+              )}
+              {selectedWaiterId && (
+                <p>
+                  <strong>Waiter:</strong> {waiters.find((w) => w.id === selectedWaiterId)?.name}
+                </p>
+              )}
+            </div>
+            <div className="border-t border-dashed pt-3 space-y-2">
+              {cart.map((item) => (
+                <div key={item.menuItem.id} className="flex justify-between">
+                  <span>{item.menuItem.name}</span>
+                  <span className="font-bold">x{item.quantity}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowKitchenInvoice(false)}>
+              Cancel
+            </Button>
+            <Button onClick={printKitchenInvoice}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Completed Dialog */}
+      <Dialog open={!!completedOrder} onOpenChange={() => setCompletedOrder(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">
+              {completedOrder?.orderType === 'dine-in' ? 'Order Placed!' : 'Order Completed!'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <Receipt className="h-8 w-8 text-green-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{completedOrder?.orderNumber}</p>
+              <p className="text-lg font-semibold text-primary">
+                {formatPrice(completedOrder?.total || 0)}
+              </p>
+            </div>
+            {completedOrder?.tableNumber && (
+              <p className="text-muted-foreground">Table #{completedOrder.tableNumber}</p>
+            )}
+            {completedOrder?.waiterName && (
+              <p className="text-muted-foreground">Waiter: {completedOrder.waiterName}</p>
+            )}
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button onClick={printCustomerInvoice} className="w-full">
+              <Printer className="h-4 w-4 mr-2" />
+              Print Customer Invoice
+            </Button>
+            {completedOrder?.orderType === 'dine-in' ? (
+              <div className="flex gap-2 w-full">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setCompletedOrder(null);
+                    handleBackToOrderType();
+                  }}
+                  className="flex-1"
+                >
+                  New Order
+                </Button>
+                <Button variant="default" onClick={handleSettleAndClose} className="flex-1">
+                  Settle & Close Table
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCompletedOrder(null);
+                  handleBackToOrderType();
+                }}
+                className="w-full"
+              >
+                New Order
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -9,9 +9,30 @@ import {
   StockTransfer,
   LowStockAlert,
   IngredientCategory,
+  Table,
+  Waiter,
+  RestaurantSettings,
 } from '@/types/restaurant';
 
 interface RestaurantState {
+  // Settings
+  settings: RestaurantSettings;
+  updateSettings: (settings: Partial<RestaurantSettings>) => void;
+
+  // Tables
+  tables: Table[];
+  addTable: (table: Omit<Table, 'id' | 'status'>) => void;
+  updateTable: (id: string, updates: Partial<Table>) => void;
+  deleteTable: (id: string) => void;
+  occupyTable: (tableId: string, orderId: string) => void;
+  freeTable: (tableId: string) => void;
+
+  // Waiters
+  waiters: Waiter[];
+  addWaiter: (waiter: Omit<Waiter, 'id'>) => void;
+  updateWaiter: (id: string, updates: Partial<Waiter>) => void;
+  deleteWaiter: (id: string) => void;
+
   // Ingredients
   ingredients: Ingredient[];
   ingredientCategories: IngredientCategory[];
@@ -41,17 +62,30 @@ interface RestaurantState {
   removeFromCart: (menuItemId: string) => void;
   clearCart: () => void;
   addCartItemNote: (menuItemId: string, note: string) => void;
+  loadOrderToCart: (orderId: string) => void;
 
   // Orders
   orders: Order[];
+  currentEditingOrderId: string | null;
+  setCurrentEditingOrderId: (orderId: string | null) => void;
   completeOrder: (orderDetails: {
     paymentMethod: 'cash' | 'card' | 'mobile';
     customerName?: string;
-    tableNumber?: string;
-    orderType: 'dine-in' | 'takeaway' | 'delivery';
+    tableId?: string;
+    waiterId?: string;
+    orderType: 'dine-in' | 'online' | 'takeaway';
+    discount?: number;
+  }) => Order | null;
+  updateOrder: (orderId: string, orderDetails: {
+    paymentMethod: 'cash' | 'card' | 'mobile';
+    customerName?: string;
+    tableId?: string;
+    waiterId?: string;
+    orderType: 'dine-in' | 'online' | 'takeaway';
     discount?: number;
   }) => Order | null;
   cancelOrder: (orderId: string) => void;
+  getTableOrder: (tableId: string) => Order | undefined;
 
   // Calculations
   calculateRecipeCost: (recipe: { ingredientId: string; quantity: number }[]) => number;
@@ -62,179 +96,246 @@ interface RestaurantState {
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`;
 
-// Sample data
+// Default Pakistan Settings
+const defaultSettings: RestaurantSettings = {
+  name: 'Pakistani Dhaba',
+  address: 'Main Boulevard, Gulberg III, Lahore',
+  phone: '+92 300 1234567',
+  taxRate: 16, // GST in Pakistan
+  currency: 'PKR',
+  currencySymbol: 'Rs.',
+};
+
+// Sample Tables
+const initialTables: Table[] = [
+  { id: '1', number: 1, capacity: 4, status: 'available' },
+  { id: '2', number: 2, capacity: 4, status: 'available' },
+  { id: '3', number: 3, capacity: 2, status: 'available' },
+  { id: '4', number: 4, capacity: 6, status: 'available' },
+  { id: '5', number: 5, capacity: 4, status: 'available' },
+  { id: '6', number: 6, capacity: 8, status: 'available' },
+  { id: '7', number: 7, capacity: 2, status: 'available' },
+  { id: '8', number: 8, capacity: 4, status: 'available' },
+  { id: '9', number: 9, capacity: 6, status: 'available' },
+  { id: '10', number: 10, capacity: 4, status: 'available' },
+  { id: '11', number: 11, capacity: 2, status: 'available' },
+  { id: '12', number: 12, capacity: 8, status: 'available' },
+];
+
+// Sample Waiters
+const initialWaiters: Waiter[] = [
+  { id: '1', name: 'Ahmed Khan', phone: '+92 301 1111111', isActive: true },
+  { id: '2', name: 'Bilal Hussain', phone: '+92 302 2222222', isActive: true },
+  { id: '3', name: 'Usman Ali', phone: '+92 303 3333333', isActive: true },
+  { id: '4', name: 'Farhan Malik', phone: '+92 304 4444444', isActive: true },
+];
+
+// Sample data - Pakistani Ingredients
 const initialIngredientCategories: IngredientCategory[] = [
-  { id: 'meat', name: 'Meat & Poultry' },
-  { id: 'seafood', name: 'Seafood' },
-  { id: 'vegetables', name: 'Vegetables' },
+  { id: 'meat', name: 'Gosht (Meat)' },
+  { id: 'poultry', name: 'Murgh (Poultry)' },
+  { id: 'vegetables', name: 'Sabziyan (Vegetables)' },
   { id: 'dairy', name: 'Dairy' },
-  { id: 'grains', name: 'Grains & Pasta' },
-  { id: 'spices', name: 'Spices & Seasonings' },
-  { id: 'sauces', name: 'Sauces & Oils' },
-  { id: 'beverages', name: 'Beverages' },
+  { id: 'grains', name: 'Anaj (Grains)' },
+  { id: 'spices', name: 'Masalay (Spices)' },
+  { id: 'oils', name: 'Tel (Oils)' },
+  { id: 'beverages', name: 'Mashroobat (Beverages)' },
 ];
 
 const initialIngredients: Ingredient[] = [
-  { id: '1', name: 'Chicken Breast', unit: 'kg', costPerUnit: 8.50, storeStock: 25, kitchenStock: 5, lowStockThreshold: 10, category: 'meat', createdAt: new Date(), updatedAt: new Date() },
-  { id: '2', name: 'Beef Tenderloin', unit: 'kg', costPerUnit: 25.00, storeStock: 15, kitchenStock: 3, lowStockThreshold: 5, category: 'meat', createdAt: new Date(), updatedAt: new Date() },
-  { id: '3', name: 'Salmon Fillet', unit: 'kg', costPerUnit: 18.00, storeStock: 10, kitchenStock: 2, lowStockThreshold: 5, category: 'seafood', createdAt: new Date(), updatedAt: new Date() },
-  { id: '4', name: 'Shrimp', unit: 'kg', costPerUnit: 15.00, storeStock: 8, kitchenStock: 2, lowStockThreshold: 5, category: 'seafood', createdAt: new Date(), updatedAt: new Date() },
-  { id: '5', name: 'Fresh Tomatoes', unit: 'kg', costPerUnit: 3.50, storeStock: 20, kitchenStock: 8, lowStockThreshold: 10, category: 'vegetables', createdAt: new Date(), updatedAt: new Date() },
-  { id: '6', name: 'Onions', unit: 'kg', costPerUnit: 2.00, storeStock: 30, kitchenStock: 10, lowStockThreshold: 15, category: 'vegetables', createdAt: new Date(), updatedAt: new Date() },
-  { id: '7', name: 'Garlic', unit: 'kg', costPerUnit: 8.00, storeStock: 5, kitchenStock: 1, lowStockThreshold: 3, category: 'vegetables', createdAt: new Date(), updatedAt: new Date() },
-  { id: '8', name: 'Mozzarella Cheese', unit: 'kg', costPerUnit: 12.00, storeStock: 8, kitchenStock: 2, lowStockThreshold: 5, category: 'dairy', createdAt: new Date(), updatedAt: new Date() },
-  { id: '9', name: 'Heavy Cream', unit: 'L', costPerUnit: 4.50, storeStock: 10, kitchenStock: 3, lowStockThreshold: 5, category: 'dairy', createdAt: new Date(), updatedAt: new Date() },
-  { id: '10', name: 'Pasta Spaghetti', unit: 'kg', costPerUnit: 2.50, storeStock: 20, kitchenStock: 5, lowStockThreshold: 10, category: 'grains', createdAt: new Date(), updatedAt: new Date() },
-  { id: '11', name: 'Basmati Rice', unit: 'kg', costPerUnit: 3.00, storeStock: 25, kitchenStock: 8, lowStockThreshold: 10, category: 'grains', createdAt: new Date(), updatedAt: new Date() },
-  { id: '12', name: 'Olive Oil', unit: 'L', costPerUnit: 10.00, storeStock: 5, kitchenStock: 2, lowStockThreshold: 3, category: 'sauces', createdAt: new Date(), updatedAt: new Date() },
-  { id: '13', name: 'Tomato Sauce', unit: 'L', costPerUnit: 3.00, storeStock: 12, kitchenStock: 4, lowStockThreshold: 6, category: 'sauces', createdAt: new Date(), updatedAt: new Date() },
-  { id: '14', name: 'Black Pepper', unit: 'kg', costPerUnit: 25.00, storeStock: 2, kitchenStock: 0.5, lowStockThreshold: 1, category: 'spices', createdAt: new Date(), updatedAt: new Date() },
-  { id: '15', name: 'Salt', unit: 'kg', costPerUnit: 1.50, storeStock: 10, kitchenStock: 3, lowStockThreshold: 5, category: 'spices', createdAt: new Date(), updatedAt: new Date() },
+  { id: '1', name: 'Chicken (Murgh)', unit: 'kg', costPerUnit: 450, storeStock: 25, kitchenStock: 5, lowStockThreshold: 10, category: 'poultry', createdAt: new Date(), updatedAt: new Date() },
+  { id: '2', name: 'Mutton (Gosht)', unit: 'kg', costPerUnit: 1800, storeStock: 15, kitchenStock: 3, lowStockThreshold: 5, category: 'meat', createdAt: new Date(), updatedAt: new Date() },
+  { id: '3', name: 'Beef (Gai ka Gosht)', unit: 'kg', costPerUnit: 850, storeStock: 20, kitchenStock: 4, lowStockThreshold: 8, category: 'meat', createdAt: new Date(), updatedAt: new Date() },
+  { id: '4', name: 'Basmati Rice', unit: 'kg', costPerUnit: 280, storeStock: 50, kitchenStock: 10, lowStockThreshold: 15, category: 'grains', createdAt: new Date(), updatedAt: new Date() },
+  { id: '5', name: 'Atta (Flour)', unit: 'kg', costPerUnit: 120, storeStock: 100, kitchenStock: 20, lowStockThreshold: 30, category: 'grains', createdAt: new Date(), updatedAt: new Date() },
+  { id: '6', name: 'Onions (Pyaz)', unit: 'kg', costPerUnit: 80, storeStock: 30, kitchenStock: 10, lowStockThreshold: 15, category: 'vegetables', createdAt: new Date(), updatedAt: new Date() },
+  { id: '7', name: 'Tomatoes (Tamatar)', unit: 'kg', costPerUnit: 120, storeStock: 25, kitchenStock: 8, lowStockThreshold: 10, category: 'vegetables', createdAt: new Date(), updatedAt: new Date() },
+  { id: '8', name: 'Desi Ghee', unit: 'kg', costPerUnit: 2200, storeStock: 10, kitchenStock: 2, lowStockThreshold: 5, category: 'oils', createdAt: new Date(), updatedAt: new Date() },
+  { id: '9', name: 'Cooking Oil', unit: 'L', costPerUnit: 400, storeStock: 20, kitchenStock: 5, lowStockThreshold: 8, category: 'oils', createdAt: new Date(), updatedAt: new Date() },
+  { id: '10', name: 'Yogurt (Dahi)', unit: 'kg', costPerUnit: 250, storeStock: 15, kitchenStock: 3, lowStockThreshold: 5, category: 'dairy', createdAt: new Date(), updatedAt: new Date() },
+  { id: '11', name: 'Garam Masala', unit: 'kg', costPerUnit: 1500, storeStock: 5, kitchenStock: 1, lowStockThreshold: 2, category: 'spices', createdAt: new Date(), updatedAt: new Date() },
+  { id: '12', name: 'Red Chili Powder', unit: 'kg', costPerUnit: 800, storeStock: 8, kitchenStock: 2, lowStockThreshold: 3, category: 'spices', createdAt: new Date(), updatedAt: new Date() },
+  { id: '13', name: 'Turmeric (Haldi)', unit: 'kg', costPerUnit: 600, storeStock: 5, kitchenStock: 1, lowStockThreshold: 2, category: 'spices', createdAt: new Date(), updatedAt: new Date() },
+  { id: '14', name: 'Green Chilies', unit: 'kg', costPerUnit: 200, storeStock: 10, kitchenStock: 3, lowStockThreshold: 4, category: 'vegetables', createdAt: new Date(), updatedAt: new Date() },
+  { id: '15', name: 'Ginger Garlic Paste', unit: 'kg', costPerUnit: 350, storeStock: 8, kitchenStock: 2, lowStockThreshold: 3, category: 'spices', createdAt: new Date(), updatedAt: new Date() },
 ];
 
 const initialMenuCategories: MenuCategory[] = [
-  { id: 'appetizers', name: 'Appetizers', icon: '🥗', color: '#22c55e', sortOrder: 1 },
-  { id: 'main-course', name: 'Main Course', icon: '🍽️', color: '#f97316', sortOrder: 2 },
-  { id: 'pasta', name: 'Pasta', icon: '🍝', color: '#eab308', sortOrder: 3 },
-  { id: 'seafood', name: 'Seafood', icon: '🦐', color: '#3b82f6', sortOrder: 4 },
-  { id: 'desserts', name: 'Desserts', icon: '🍰', color: '#ec4899', sortOrder: 5 },
-  { id: 'beverages', name: 'Beverages', icon: '🥤', color: '#8b5cf6', sortOrder: 6 },
+  { id: 'bbq', name: 'BBQ & Tikka', icon: '🍢', color: '#ef4444', sortOrder: 1 },
+  { id: 'karahi', name: 'Karahi', icon: '🍲', color: '#f97316', sortOrder: 2 },
+  { id: 'biryani', name: 'Biryani & Rice', icon: '🍚', color: '#eab308', sortOrder: 3 },
+  { id: 'handi', name: 'Handi', icon: '🥘', color: '#22c55e', sortOrder: 4 },
+  { id: 'roti', name: 'Roti & Naan', icon: '🫓', color: '#a78bfa', sortOrder: 5 },
+  { id: 'beverages', name: 'Beverages', icon: '🥤', color: '#3b82f6', sortOrder: 6 },
+  { id: 'desserts', name: 'Meetha', icon: '🍮', color: '#ec4899', sortOrder: 7 },
 ];
 
 const initialMenuItems: MenuItem[] = [
   {
     id: '1',
-    name: 'Grilled Chicken',
-    description: 'Tender grilled chicken breast with herbs',
-    price: 18.99,
-    categoryId: 'main-course',
+    name: 'Chicken Tikka',
+    description: 'Tender marinated chicken pieces grilled to perfection',
+    price: 550,
+    categoryId: 'bbq',
     recipe: [
       { ingredientId: '1', quantity: 0.25 },
-      { ingredientId: '12', quantity: 0.02 },
-      { ingredientId: '14', quantity: 0.005 },
-      { ingredientId: '15', quantity: 0.01 },
+      { ingredientId: '10', quantity: 0.05 },
+      { ingredientId: '12', quantity: 0.01 },
+      { ingredientId: '15', quantity: 0.02 },
     ],
-    recipeCost: 2.85,
-    profitMargin: 85,
+    recipeCost: 145,
+    profitMargin: 74,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '2',
-    name: 'Beef Steak',
-    description: 'Premium beef tenderloin cooked to perfection',
-    price: 32.99,
-    categoryId: 'main-course',
+    name: 'Seekh Kabab',
+    description: 'Spiced minced meat skewers',
+    price: 450,
+    categoryId: 'bbq',
     recipe: [
-      { ingredientId: '2', quantity: 0.3 },
-      { ingredientId: '12', quantity: 0.02 },
-      { ingredientId: '14', quantity: 0.005 },
+      { ingredientId: '3', quantity: 0.2 },
+      { ingredientId: '6', quantity: 0.05 },
+      { ingredientId: '11', quantity: 0.01 },
     ],
-    recipeCost: 7.82,
-    profitMargin: 76,
+    recipeCost: 189,
+    profitMargin: 58,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '3',
-    name: 'Spaghetti Carbonara',
-    description: 'Classic Italian pasta with creamy sauce',
-    price: 16.99,
-    categoryId: 'pasta',
+    name: 'Chicken Karahi',
+    description: 'Traditional wok-fried chicken with tomatoes and spices',
+    price: 1200,
+    categoryId: 'karahi',
     recipe: [
-      { ingredientId: '10', quantity: 0.15 },
+      { ingredientId: '1', quantity: 0.5 },
+      { ingredientId: '7', quantity: 0.15 },
+      { ingredientId: '14', quantity: 0.05 },
       { ingredientId: '9', quantity: 0.1 },
-      { ingredientId: '8', quantity: 0.05 },
     ],
-    recipeCost: 1.52,
-    profitMargin: 91,
+    recipeCost: 293,
+    profitMargin: 76,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '4',
-    name: 'Grilled Salmon',
-    description: 'Fresh Atlantic salmon with lemon butter',
-    price: 28.99,
-    categoryId: 'seafood',
+    name: 'Mutton Karahi',
+    description: 'Premium mutton cooked in traditional karahi style',
+    price: 2200,
+    categoryId: 'karahi',
     recipe: [
-      { ingredientId: '3', quantity: 0.2 },
-      { ingredientId: '12', quantity: 0.02 },
+      { ingredientId: '2', quantity: 0.5 },
+      { ingredientId: '7', quantity: 0.15 },
+      { ingredientId: '8', quantity: 0.05 },
     ],
-    recipeCost: 3.80,
-    profitMargin: 87,
+    recipeCost: 928,
+    profitMargin: 58,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '5',
-    name: 'Shrimp Scampi',
-    description: 'Garlic butter shrimp with pasta',
-    price: 24.99,
-    categoryId: 'seafood',
+    name: 'Chicken Biryani',
+    description: 'Aromatic basmati rice with tender chicken pieces',
+    price: 450,
+    categoryId: 'biryani',
     recipe: [
+      { ingredientId: '1', quantity: 0.2 },
       { ingredientId: '4', quantity: 0.15 },
-      { ingredientId: '10', quantity: 0.1 },
-      { ingredientId: '7', quantity: 0.02 },
-      { ingredientId: '12', quantity: 0.03 },
+      { ingredientId: '10', quantity: 0.05 },
+      { ingredientId: '11', quantity: 0.01 },
     ],
-    recipeCost: 3.01,
-    profitMargin: 88,
+    recipeCost: 157,
+    profitMargin: 65,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '6',
-    name: 'Caesar Salad',
-    description: 'Fresh romaine with parmesan and croutons',
-    price: 12.99,
-    categoryId: 'appetizers',
+    name: 'Mutton Biryani',
+    description: 'Fragrant rice with succulent mutton pieces',
+    price: 650,
+    categoryId: 'biryani',
     recipe: [
+      { ingredientId: '2', quantity: 0.2 },
+      { ingredientId: '4', quantity: 0.15 },
       { ingredientId: '8', quantity: 0.03 },
-      { ingredientId: '12', quantity: 0.02 },
     ],
-    recipeCost: 0.56,
-    profitMargin: 96,
+    recipeCost: 468,
+    profitMargin: 28,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '7',
-    name: 'Tomato Bruschetta',
-    description: 'Toasted bread with fresh tomatoes and basil',
-    price: 9.99,
-    categoryId: 'appetizers',
+    name: 'Beef Handi',
+    description: 'Slow-cooked beef in traditional clay pot',
+    price: 1400,
+    categoryId: 'handi',
     recipe: [
-      { ingredientId: '5', quantity: 0.1 },
-      { ingredientId: '7', quantity: 0.01 },
-      { ingredientId: '12', quantity: 0.02 },
+      { ingredientId: '3', quantity: 0.4 },
+      { ingredientId: '6', quantity: 0.1 },
+      { ingredientId: '10', quantity: 0.1 },
+      { ingredientId: '8', quantity: 0.05 },
     ],
-    recipeCost: 0.63,
-    profitMargin: 94,
+    recipeCost: 483,
+    profitMargin: 66,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
     id: '8',
-    name: 'Chicken Alfredo',
-    description: 'Creamy pasta with grilled chicken',
-    price: 19.99,
-    categoryId: 'pasta',
+    name: 'Plain Naan',
+    description: 'Freshly baked traditional naan bread',
+    price: 50,
+    categoryId: 'roti',
     recipe: [
-      { ingredientId: '1', quantity: 0.15 },
-      { ingredientId: '10', quantity: 0.12 },
-      { ingredientId: '9', quantity: 0.1 },
-      { ingredientId: '8', quantity: 0.04 },
+      { ingredientId: '5', quantity: 0.1 },
     ],
-    recipeCost: 2.40,
-    profitMargin: 88,
+    recipeCost: 12,
+    profitMargin: 76,
+    isAvailable: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: '9',
+    name: 'Roghni Naan',
+    description: 'Buttery naan topped with sesame seeds',
+    price: 80,
+    categoryId: 'roti',
+    recipe: [
+      { ingredientId: '5', quantity: 0.1 },
+      { ingredientId: '8', quantity: 0.02 },
+    ],
+    recipeCost: 56,
+    profitMargin: 30,
+    isAvailable: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: '10',
+    name: 'Lassi',
+    description: 'Traditional sweet yogurt drink',
+    price: 150,
+    categoryId: 'beverages',
+    recipe: [
+      { ingredientId: '10', quantity: 0.15 },
+    ],
+    recipeCost: 38,
+    profitMargin: 75,
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -245,6 +346,9 @@ export const useRestaurantStore = create<RestaurantState>()(
   persist(
     (set, get) => ({
       // Initial Data
+      settings: defaultSettings,
+      tables: initialTables,
+      waiters: initialWaiters,
       ingredients: initialIngredients,
       ingredientCategories: initialIngredientCategories,
       menuItems: initialMenuItems,
@@ -252,6 +356,85 @@ export const useRestaurantStore = create<RestaurantState>()(
       cart: [],
       orders: [],
       stockTransfers: [],
+      currentEditingOrderId: null,
+
+      // Settings
+      updateSettings: (newSettings) => {
+        set((state) => ({
+          settings: { ...state.settings, ...newSettings },
+        }));
+      },
+
+      // Table Management
+      addTable: (table) => {
+        const newTable: Table = {
+          ...table,
+          id: generateId(),
+          status: 'available',
+        };
+        set((state) => ({
+          tables: [...state.tables, newTable],
+        }));
+      },
+
+      updateTable: (id, updates) => {
+        set((state) => ({
+          tables: state.tables.map((table) =>
+            table.id === id ? { ...table, ...updates } : table
+          ),
+        }));
+      },
+
+      deleteTable: (id) => {
+        set((state) => ({
+          tables: state.tables.filter((table) => table.id !== id),
+        }));
+      },
+
+      occupyTable: (tableId, orderId) => {
+        set((state) => ({
+          tables: state.tables.map((table) =>
+            table.id === tableId
+              ? { ...table, status: 'occupied' as const, currentOrderId: orderId }
+              : table
+          ),
+        }));
+      },
+
+      freeTable: (tableId) => {
+        set((state) => ({
+          tables: state.tables.map((table) =>
+            table.id === tableId
+              ? { ...table, status: 'available' as const, currentOrderId: undefined }
+              : table
+          ),
+        }));
+      },
+
+      // Waiter Management
+      addWaiter: (waiter) => {
+        const newWaiter: Waiter = {
+          ...waiter,
+          id: generateId(),
+        };
+        set((state) => ({
+          waiters: [...state.waiters, newWaiter],
+        }));
+      },
+
+      updateWaiter: (id, updates) => {
+        set((state) => ({
+          waiters: state.waiters.map((waiter) =>
+            waiter.id === id ? { ...waiter, ...updates } : waiter
+          ),
+        }));
+      },
+
+      deleteWaiter: (id) => {
+        set((state) => ({
+          waiters: state.waiters.filter((waiter) => waiter.id !== id),
+        }));
+      },
 
       // Ingredient Management
       addIngredient: (ingredient) => {
@@ -441,7 +624,7 @@ export const useRestaurantStore = create<RestaurantState>()(
         }));
       },
 
-      clearCart: () => set({ cart: [] }),
+      clearCart: () => set({ cart: [], currentEditingOrderId: null }),
 
       addCartItemNote: (menuItemId, note) => {
         set((state) => ({
@@ -451,18 +634,55 @@ export const useRestaurantStore = create<RestaurantState>()(
         }));
       },
 
+      loadOrderToCart: (orderId) => {
+        const { orders, menuItems } = get();
+        const order = orders.find((o) => o.id === orderId);
+        if (!order) return;
+
+        const cartItems: CartItem[] = [];
+        order.items.forEach((item) => {
+          const menuItem = menuItems.find((m) => m.id === item.menuItemId);
+          if (menuItem) {
+            cartItems.push({
+              menuItem,
+              quantity: item.quantity,
+              notes: item.notes,
+            });
+          }
+        });
+
+        set({
+          cart: cartItems,
+          currentEditingOrderId: orderId,
+        });
+      },
+
+      setCurrentEditingOrderId: (orderId) => {
+        set({ currentEditingOrderId: orderId });
+      },
+
+      getTableOrder: (tableId) => {
+        const { orders, tables } = get();
+        const table = tables.find((t) => t.id === tableId);
+        if (!table || !table.currentOrderId) return undefined;
+        return orders.find((o) => o.id === table.currentOrderId && o.status === 'pending');
+      },
+
       // Order Management
       completeOrder: (orderDetails) => {
-        const { cart, ingredients } = get();
+        const { cart, settings, tables, waiters } = get();
         if (cart.length === 0) return null;
 
         const subtotal = cart.reduce(
           (sum, item) => sum + item.menuItem.price * item.quantity,
           0
         );
-        const tax = subtotal * 0.1; // 10% tax
+        const tax = subtotal * (settings.taxRate / 100);
         const discount = orderDetails.discount || 0;
         const total = subtotal + tax - discount;
+
+        const table = tables.find((t) => t.id === orderDetails.tableId);
+        const waiter = waiters.find((w) => w.id === orderDetails.waiterId);
 
         const order: Order = {
           id: generateId(),
@@ -480,12 +700,15 @@ export const useRestaurantStore = create<RestaurantState>()(
           discount,
           total,
           paymentMethod: orderDetails.paymentMethod,
-          status: 'completed',
+          status: orderDetails.orderType === 'dine-in' ? 'pending' : 'completed',
           customerName: orderDetails.customerName,
-          tableNumber: orderDetails.tableNumber,
+          tableId: orderDetails.tableId,
+          tableNumber: table?.number,
+          waiterId: orderDetails.waiterId,
+          waiterName: waiter?.name,
           orderType: orderDetails.orderType,
           createdAt: new Date(),
-          completedAt: new Date(),
+          completedAt: orderDetails.orderType !== 'dine-in' ? new Date() : undefined,
         };
 
         // Deduct ingredients from kitchen stock
@@ -496,18 +719,79 @@ export const useRestaurantStore = create<RestaurantState>()(
           });
         });
 
+        // Occupy table if dine-in
+        if (orderDetails.orderType === 'dine-in' && orderDetails.tableId) {
+          get().occupyTable(orderDetails.tableId, order.id);
+        }
+
         set((state) => ({
           orders: [order, ...state.orders],
           cart: [],
+          currentEditingOrderId: null,
         }));
 
         return order;
       },
 
-      cancelOrder: (orderId) => {
+      updateOrder: (orderId, orderDetails) => {
+        const { cart, settings, tables, waiters } = get();
+        if (cart.length === 0) return null;
+
+        const subtotal = cart.reduce(
+          (sum, item) => sum + item.menuItem.price * item.quantity,
+          0
+        );
+        const tax = subtotal * (settings.taxRate / 100);
+        const discount = orderDetails.discount || 0;
+        const total = subtotal + tax - discount;
+
+        const table = tables.find((t) => t.id === orderDetails.tableId);
+        const waiter = waiters.find((w) => w.id === orderDetails.waiterId);
+
         set((state) => ({
           orders: state.orders.map((order) =>
-            order.id === orderId ? { ...order, status: 'cancelled' as const } : order
+            order.id === orderId
+              ? {
+                  ...order,
+                  items: cart.map((item) => ({
+                    menuItemId: item.menuItem.id,
+                    menuItemName: item.menuItem.name,
+                    quantity: item.quantity,
+                    unitPrice: item.menuItem.price,
+                    total: item.menuItem.price * item.quantity,
+                    notes: item.notes,
+                  })),
+                  subtotal,
+                  tax,
+                  discount,
+                  total,
+                  paymentMethod: orderDetails.paymentMethod,
+                  customerName: orderDetails.customerName,
+                  tableId: orderDetails.tableId,
+                  tableNumber: table?.number,
+                  waiterId: orderDetails.waiterId,
+                  waiterName: waiter?.name,
+                }
+              : order
+          ),
+          cart: [],
+          currentEditingOrderId: null,
+        }));
+
+        return get().orders.find((o) => o.id === orderId) || null;
+      },
+
+      cancelOrder: (orderId) => {
+        const { orders, tables } = get();
+        const order = orders.find((o) => o.id === orderId);
+        
+        if (order?.tableId) {
+          get().freeTable(order.tableId);
+        }
+
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            o.id === orderId ? { ...o, status: 'cancelled' as const } : o
           ),
         }));
       },

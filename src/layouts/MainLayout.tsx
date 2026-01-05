@@ -40,8 +40,8 @@ export default function MainLayout() {
             <ChefHat className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-lg font-display font-bold text-sidebar-accent-foreground">RestaurantPro</h1>
-            <p className="text-xs text-sidebar-foreground/60">Management System</p>
+            <h1 className="text-lg font-display font-bold text-sidebar-accent-foreground">Pakistani Dhaba</h1>
+            <p className="text-xs text-sidebar-foreground/60">Restaurant POS</p>
           </div>
         </div>
 
@@ -90,7 +90,7 @@ export default function MainLayout() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ChefHat className="h-5 w-5" />
           </div>
-          <h1 className="font-display font-bold">RestaurantPro</h1>
+          <h1 className="font-display font-bold">Pakistani Dhaba</h1>
         </header>
 
         {/* Main Content */}
