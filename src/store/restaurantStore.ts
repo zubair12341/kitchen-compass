@@ -11,13 +11,16 @@ import {
   IngredientCategory,
   Table,
   Waiter,
+  Staff,
   RestaurantSettings,
+  InvoiceSettings,
 } from '@/types/restaurant';
 
 interface RestaurantState {
   // Settings
   settings: RestaurantSettings;
   updateSettings: (settings: Partial<RestaurantSettings>) => void;
+  updateInvoiceSettings: (invoice: Partial<InvoiceSettings>) => void;
 
   // Tables
   tables: Table[];
@@ -33,16 +36,25 @@ interface RestaurantState {
   updateWaiter: (id: string, updates: Partial<Waiter>) => void;
   deleteWaiter: (id: string) => void;
 
+  // Staff
+  staff: Staff[];
+  addStaff: (staff: Omit<Staff, 'id' | 'createdAt'>) => void;
+  updateStaff: (id: string, updates: Partial<Staff>) => void;
+  deleteStaff: (id: string) => void;
+
   // Ingredients
   ingredients: Ingredient[];
   ingredientCategories: IngredientCategory[];
   addIngredient: (ingredient: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateIngredient: (id: string, updates: Partial<Ingredient>) => void;
   deleteIngredient: (id: string) => void;
+  addIngredientCategory: (category: Omit<IngredientCategory, 'id'>) => void;
+  deleteIngredientCategory: (id: string) => void;
 
   // Stock Management
   addStoreStock: (ingredientId: string, quantity: number, reason?: string) => void;
   transferToKitchen: (ingredientId: string, quantity: number) => void;
+  transferToStore: (ingredientId: string, quantity: number) => void;
   deductKitchenStock: (ingredientId: string, quantity: number) => void;
   stockTransfers: StockTransfer[];
 
@@ -84,6 +96,7 @@ interface RestaurantState {
     orderType: 'dine-in' | 'online' | 'takeaway';
     discount?: number;
   }) => Order | null;
+  settleOrder: (orderId: string) => void;
   cancelOrder: (orderId: string) => void;
   getTableOrder: (tableId: string) => Order | undefined;
 
@@ -104,6 +117,12 @@ const defaultSettings: RestaurantSettings = {
   taxRate: 16, // GST in Pakistan
   currency: 'PKR',
   currencySymbol: 'Rs.',
+  invoice: {
+    title: 'Pakistani Dhaba',
+    footer: 'Thank you for dining with us! Visit again.',
+    showLogo: true,
+    showTaxBreakdown: true,
+  },
 };
 
 // Sample Tables
@@ -128,6 +147,13 @@ const initialWaiters: Waiter[] = [
   { id: '2', name: 'Bilal Hussain', phone: '+92 302 2222222', isActive: true },
   { id: '3', name: 'Usman Ali', phone: '+92 303 3333333', isActive: true },
   { id: '4', name: 'Farhan Malik', phone: '+92 304 4444444', isActive: true },
+];
+
+// Sample Staff
+const initialStaff: Staff[] = [
+  { id: '1', name: 'Muhammad Kashif', phone: '+92 300 1234567', email: 'admin@dhaba.pk', role: 'admin', isActive: true, createdAt: new Date() },
+  { id: '2', name: 'Ali Raza', phone: '+92 301 7654321', email: 'manager@dhaba.pk', role: 'manager', isActive: true, createdAt: new Date() },
+  { id: '3', name: 'Imran Shah', phone: '+92 302 1122334', email: 'pos@dhaba.pk', role: 'pos_user', isActive: true, createdAt: new Date() },
 ];
 
 // Sample data - Pakistani Ingredients
@@ -349,6 +375,7 @@ export const useRestaurantStore = create<RestaurantState>()(
       settings: defaultSettings,
       tables: initialTables,
       waiters: initialWaiters,
+      staff: initialStaff,
       ingredients: initialIngredients,
       ingredientCategories: initialIngredientCategories,
       menuItems: initialMenuItems,
@@ -362,6 +389,15 @@ export const useRestaurantStore = create<RestaurantState>()(
       updateSettings: (newSettings) => {
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
+        }));
+      },
+
+      updateInvoiceSettings: (invoice) => {
+        set((state) => ({
+          settings: {
+            ...state.settings,
+            invoice: { ...state.settings.invoice, ...invoice },
+          },
         }));
       },
 
@@ -436,6 +472,32 @@ export const useRestaurantStore = create<RestaurantState>()(
         }));
       },
 
+      // Staff Management
+      addStaff: (staffMember) => {
+        const newStaff: Staff = {
+          ...staffMember,
+          id: generateId(),
+          createdAt: new Date(),
+        };
+        set((state) => ({
+          staff: [...state.staff, newStaff],
+        }));
+      },
+
+      updateStaff: (id, updates) => {
+        set((state) => ({
+          staff: state.staff.map((s) =>
+            s.id === id ? { ...s, ...updates } : s
+          ),
+        }));
+      },
+
+      deleteStaff: (id) => {
+        set((state) => ({
+          staff: state.staff.filter((s) => s.id !== id),
+        }));
+      },
+
       // Ingredient Management
       addIngredient: (ingredient) => {
         const newIngredient: Ingredient = {
@@ -460,6 +522,22 @@ export const useRestaurantStore = create<RestaurantState>()(
       deleteIngredient: (id) => {
         set((state) => ({
           ingredients: state.ingredients.filter((ing) => ing.id !== id),
+        }));
+      },
+
+      addIngredientCategory: (category) => {
+        const newCategory: IngredientCategory = {
+          ...category,
+          id: generateId(),
+        };
+        set((state) => ({
+          ingredientCategories: [...state.ingredientCategories, newCategory],
+        }));
+      },
+
+      deleteIngredientCategory: (id) => {
+        set((state) => ({
+          ingredientCategories: state.ingredientCategories.filter((cat) => cat.id !== id),
         }));
       },
 
@@ -511,6 +589,38 @@ export const useRestaurantStore = create<RestaurantState>()(
                 fromLocation: 'store' as const,
                 toLocation: 'kitchen' as const,
                 reason: 'Transfer to kitchen',
+                createdAt: new Date(),
+              },
+            ],
+          };
+        });
+      },
+
+      transferToStore: (ingredientId, quantity) => {
+        set((state) => {
+          const ingredient = state.ingredients.find((i) => i.id === ingredientId);
+          if (!ingredient || ingredient.kitchenStock < quantity) return state;
+
+          return {
+            ingredients: state.ingredients.map((ing) =>
+              ing.id === ingredientId
+                ? {
+                    ...ing,
+                    storeStock: ing.storeStock + quantity,
+                    kitchenStock: ing.kitchenStock - quantity,
+                    updatedAt: new Date(),
+                  }
+                : ing
+            ),
+            stockTransfers: [
+              ...state.stockTransfers,
+              {
+                id: generateId(),
+                ingredientId,
+                quantity,
+                fromLocation: 'kitchen' as const,
+                toLocation: 'store' as const,
+                reason: 'Return to store',
                 createdAt: new Date(),
               },
             ],
@@ -781,8 +891,23 @@ export const useRestaurantStore = create<RestaurantState>()(
         return get().orders.find((o) => o.id === orderId) || null;
       },
 
+      settleOrder: (orderId) => {
+        const { orders } = get();
+        const order = orders.find((o) => o.id === orderId);
+        
+        if (order?.tableId) {
+          get().freeTable(order.tableId);
+        }
+
+        set((state) => ({
+          orders: state.orders.map((o) =>
+            o.id === orderId ? { ...o, status: 'completed' as const, completedAt: new Date() } : o
+          ),
+        }));
+      },
+
       cancelOrder: (orderId) => {
-        const { orders, tables } = get();
+        const { orders } = get();
         const order = orders.find((o) => o.id === orderId);
         
         if (order?.tableId) {

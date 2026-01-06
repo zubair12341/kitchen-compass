@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Package, ArrowRight, Plus, AlertTriangle, Warehouse, ChefHat } from 'lucide-react';
+import { Package, ArrowRight, Plus, AlertTriangle, Warehouse } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,17 +7,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
-export default function Stock() {
-  const { ingredients, ingredientCategories, addStoreStock, transferToKitchen, getLowStockAlerts } = useRestaurantStore();
+export default function StoreStock() {
+  const { ingredients, ingredientCategories, settings, addStoreStock, transferToKitchen, getLowStockAlerts } = useRestaurantStore();
   const [showAddStockDialog, setShowAddStockDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
 
   const lowStockAlerts = getLowStockAlerts();
+
+  const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
   const handleAddStock = () => {
     if (!selectedIngredient || !quantity) {
@@ -70,8 +71,8 @@ export default function Stock() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="page-header mb-0">
-          <h1 className="page-title">Stock Management</h1>
-          <p className="page-subtitle">Manage store and kitchen inventory</p>
+          <h1 className="page-title">Store Stock</h1>
+          <p className="page-subtitle">Manage store inventory and transfers</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowTransferDialog(true)} className="gap-2">
@@ -94,18 +95,18 @@ export default function Stock() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Store Value</p>
-              <p className="text-2xl font-bold">${totalStoreValue.toFixed(2)}</p>
+              <p className="text-2xl font-bold">{formatPrice(totalStoreValue)}</p>
             </div>
           </div>
         </Card>
         <Card className="stat-card">
           <div className="flex items-center gap-4">
             <div className="rounded-xl bg-success/10 p-3 text-success">
-              <ChefHat className="h-6 w-6" />
+              <Package className="h-6 w-6" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Kitchen Value</p>
-              <p className="text-2xl font-bold">${totalKitchenValue.toFixed(2)}</p>
+              <p className="text-2xl font-bold">{formatPrice(totalKitchenValue)}</p>
             </div>
           </div>
         </Card>
@@ -167,16 +168,13 @@ export default function Stock() {
         </Card>
       )}
 
-      {/* Stock Tables */}
-      <Tabs defaultValue="all" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="all">All Stock</TabsTrigger>
-          <TabsTrigger value="store">Store</TabsTrigger>
-          <TabsTrigger value="kitchen">Kitchen</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all">
-          <div className="section-card overflow-hidden">
+      {/* Store Stock Table */}
+      <Card className="section-card">
+        <CardHeader>
+          <CardTitle>Store Inventory</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-hidden rounded-lg border">
             <table className="data-table">
               <thead>
                 <tr>
@@ -188,6 +186,7 @@ export default function Stock() {
                   <th>Total</th>
                   <th>Value</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,50 +208,20 @@ export default function Stock() {
                       </td>
                       <td className="text-muted-foreground">{category?.name || '-'}</td>
                       <td>{ing.unit}</td>
-                      <td>{ing.storeStock.toFixed(2)}</td>
-                      <td>{ing.kitchenStock.toFixed(2)}</td>
+                      <td className="font-medium">{ing.storeStock.toFixed(2)}</td>
+                      <td className="text-muted-foreground">{ing.kitchenStock.toFixed(2)}</td>
                       <td className="font-medium">{totalStock.toFixed(2)}</td>
-                      <td className="font-medium">${totalValue.toFixed(2)}</td>
+                      <td className="font-medium">{formatPrice(totalValue)}</td>
                       <td>
                         <span className={isLow ? 'badge-destructive' : 'badge-success'}>
                           {isLow ? 'Low' : 'OK'}
                         </span>
                       </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="store">
-          <div className="section-card overflow-hidden">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Ingredient</th>
-                  <th>Category</th>
-                  <th>Unit</th>
-                  <th>Store Stock</th>
-                  <th>Value</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ingredients.filter((ing) => ing.storeStock > 0).map((ing) => {
-                  const category = ingredientCategories.find((c) => c.id === ing.category);
-                  return (
-                    <tr key={ing.id}>
-                      <td className="font-medium">{ing.name}</td>
-                      <td className="text-muted-foreground">{category?.name || '-'}</td>
-                      <td>{ing.unit}</td>
-                      <td>{ing.storeStock.toFixed(2)}</td>
-                      <td className="font-medium">${(ing.storeStock * ing.costPerUnit).toFixed(2)}</td>
                       <td>
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={ing.storeStock <= 0}
                           onClick={() => {
                             setSelectedIngredient(ing.id);
                             setShowTransferDialog(true);
@@ -267,38 +236,8 @@ export default function Stock() {
               </tbody>
             </table>
           </div>
-        </TabsContent>
-
-        <TabsContent value="kitchen">
-          <div className="section-card overflow-hidden">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Ingredient</th>
-                  <th>Category</th>
-                  <th>Unit</th>
-                  <th>Kitchen Stock</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ingredients.filter((ing) => ing.kitchenStock > 0).map((ing) => {
-                  const category = ingredientCategories.find((c) => c.id === ing.category);
-                  return (
-                    <tr key={ing.id}>
-                      <td className="font-medium">{ing.name}</td>
-                      <td className="text-muted-foreground">{category?.name || '-'}</td>
-                      <td>{ing.unit}</td>
-                      <td>{ing.kitchenStock.toFixed(2)}</td>
-                      <td className="font-medium">${(ing.kitchenStock * ing.costPerUnit).toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
 
       {/* Add Stock Dialog */}
       <Dialog open={showAddStockDialog} onOpenChange={setShowAddStockDialog}>

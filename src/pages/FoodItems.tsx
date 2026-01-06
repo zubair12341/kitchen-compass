@@ -11,8 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { MenuItem } from '@/types/restaurant';
 
-export default function MenuItems() {
-  const { menuItems, menuCategories, addMenuItem, updateMenuItem, deleteMenuItem } = useRestaurantStore();
+export default function FoodItems() {
+  const { menuItems, menuCategories, settings, addMenuItem, updateMenuItem, deleteMenuItem } = useRestaurantStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
@@ -25,6 +25,8 @@ export default function MenuItems() {
     categoryId: '',
     isAvailable: true,
   });
+
+  const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
   const filteredItems = menuItems.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -75,7 +77,7 @@ export default function MenuItems() {
         categoryId: formData.categoryId,
         isAvailable: formData.isAvailable,
       });
-      toast.success('Menu item updated');
+      toast.success('Food item updated');
     } else {
       addMenuItem({
         name: formData.name,
@@ -85,26 +87,26 @@ export default function MenuItems() {
         isAvailable: formData.isAvailable,
         recipe: [],
       });
-      toast.success('Menu item added');
+      toast.success('Food item added');
     }
     setShowDialog(false);
   };
 
   const handleDelete = (id: string) => {
     deleteMenuItem(id);
-    toast.success('Menu item deleted');
+    toast.success('Food item deleted');
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="page-header mb-0">
-          <h1 className="page-title">Menu Items</h1>
-          <p className="page-subtitle">Manage your restaurant menu</p>
+          <h1 className="page-title">Food Items</h1>
+          <p className="page-subtitle">Create and manage menu items</p>
         </div>
         <Button onClick={() => handleOpenDialog()} className="gap-2">
           <Plus className="h-4 w-4" />
-          Add Item
+          Add Food Item
         </Button>
       </div>
 
@@ -113,7 +115,7 @@ export default function MenuItems() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search menu items..."
+            placeholder="Search food items..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -134,80 +136,70 @@ export default function MenuItems() {
         </Select>
       </div>
 
-      {/* Menu Items Table */}
-      <div className="section-card overflow-hidden">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Recipe Cost</th>
-              <th>Profit Margin</th>
-              <th>Status</th>
-              <th className="text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.map((item) => {
-              const category = menuCategories.find((c) => c.id === item.categoryId);
-              return (
-                <tr key={item.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-lg">
-                        {category?.icon || '🍽️'}
-                      </div>
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="badge-success">{category?.name || 'Uncategorized'}</span>
-                  </td>
-                  <td className="font-medium">${item.price.toFixed(2)}</td>
-                  <td className="text-muted-foreground">${item.recipeCost.toFixed(2)}</td>
-                  <td>
-                    <span className={item.profitMargin >= 70 ? 'text-success font-medium' : 'text-warning font-medium'}>
+      {/* Food Items Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filteredItems.map((item) => {
+          const category = menuCategories.find((c) => c.id === item.categoryId);
+          return (
+            <div key={item.id} className="section-card p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-2xl">
+                    {category?.icon || '🍽️'}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{item.name}</h3>
+                    <p className="text-sm text-muted-foreground">{category?.name}</p>
+                  </div>
+                </div>
+                <span className={item.isAvailable ? 'badge-success' : 'badge-destructive'}>
+                  {item.isAvailable ? 'Available' : 'Unavailable'}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{item.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xl font-bold text-primary">{formatPrice(item.price)}</span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(item)}>
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(item.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              {item.recipe.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Recipe Cost:</span>
+                    <span className="font-medium">{formatPrice(item.recipeCost)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Profit Margin:</span>
+                    <span className={`font-medium ${item.profitMargin >= 50 ? 'text-success' : 'text-warning'}`}>
                       {item.profitMargin.toFixed(0)}%
                     </span>
-                  </td>
-                  <td>
-                    <span className={item.isAvailable ? 'badge-success' : 'badge-destructive'}>
-                      {item.isAvailable ? 'Available' : 'Unavailable'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(item)}>
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(item.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {filteredItems.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <UtensilsCrossed className="h-12 w-12 text-muted-foreground/50" />
-            <p className="mt-4 font-medium">No menu items found</p>
-            <p className="text-sm text-muted-foreground">Add your first menu item to get started</p>
-          </div>
-        )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+
+      {filteredItems.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <UtensilsCrossed className="h-12 w-12 text-muted-foreground/50" />
+          <p className="mt-4 font-medium">No food items found</p>
+          <p className="text-sm text-muted-foreground">Add your first food item to get started</p>
+        </div>
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
+            <DialogTitle>{editingItem ? 'Edit Food Item' : 'Add Food Item'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -216,7 +208,7 @@ export default function MenuItems() {
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Grilled Chicken"
+                placeholder="e.g. Chicken Biryani"
               />
             </div>
             <div className="space-y-2">
@@ -231,15 +223,15 @@ export default function MenuItems() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="price">Price *</Label>
+                <Label htmlFor="price">Price (Rs.) *</Label>
                 <Input
                   id="price"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="0.00"
+                  placeholder="450"
                 />
               </div>
               <div className="space-y-2">

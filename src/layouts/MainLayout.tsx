@@ -9,6 +9,8 @@ import {
   Settings,
   ChefHat,
   AlertTriangle,
+  Warehouse,
+  Users,
 } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { cn } from '@/lib/utils';
@@ -16,18 +18,21 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'POS', href: '/pos', icon: ShoppingCart },
-  { name: 'Menu Items', href: '/menu', icon: UtensilsCrossed },
-  { name: 'Ingredients', href: '/ingredients', icon: Package },
+  { name: 'Food Items', href: '/food-items', icon: UtensilsCrossed },
   { name: 'Recipes', href: '/recipes', icon: BookOpen },
-  { name: 'Stock', href: '/stock', icon: ChefHat },
+  { name: 'Ingredients', href: '/ingredients', icon: Package },
+  { name: 'Store Stock', href: '/store-stock', icon: Warehouse },
+  { name: 'Kitchen Stock', href: '/kitchen-stock', icon: ChefHat },
   { name: 'Orders', href: '/orders', icon: FileText },
   { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'Staff', href: '/staff', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export default function MainLayout() {
   const location = useLocation();
   const getLowStockAlerts = useRestaurantStore((state) => state.getLowStockAlerts);
+  const settings = useRestaurantStore((state) => state.settings);
   const lowStockAlerts = getLowStockAlerts();
 
   return (
@@ -40,7 +45,7 @@ export default function MainLayout() {
             <ChefHat className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-lg font-display font-bold text-sidebar-accent-foreground">Pakistani Dhaba</h1>
+            <h1 className="text-lg font-display font-bold text-sidebar-accent-foreground">{settings.name}</h1>
             <p className="text-xs text-sidebar-foreground/60">Restaurant POS</p>
           </div>
         </div>
@@ -49,6 +54,8 @@ export default function MainLayout() {
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
+            const showBadge = (item.href === '/store-stock' || item.href === '/kitchen-stock') && lowStockAlerts.length > 0;
+            
             return (
               <NavLink
                 key={item.name}
@@ -60,7 +67,7 @@ export default function MainLayout() {
               >
                 <item.icon className="h-5 w-5" />
                 <span>{item.name}</span>
-                {item.href === '/stock' && lowStockAlerts.length > 0 && (
+                {showBadge && (
                   <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
                     {lowStockAlerts.length}
                   </span>
@@ -90,7 +97,7 @@ export default function MainLayout() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <ChefHat className="h-5 w-5" />
           </div>
-          <h1 className="font-display font-bold">Pakistani Dhaba</h1>
+          <h1 className="font-display font-bold">{settings.name}</h1>
         </header>
 
         {/* Main Content */}

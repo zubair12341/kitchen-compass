@@ -211,11 +211,11 @@ export default function Recipes() {
                         <div className="flex items-center gap-3">
                           <span className="font-medium">{ing.name}</span>
                           <span className="text-sm text-muted-foreground">
-                            {r.quantity} {ing.unit} @ ${ing.costPerUnit.toFixed(2)}
+                            {r.quantity} {ing.unit} @ {formatPrice(ing.costPerUnit)}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-medium">${cost.toFixed(2)}</span>
+                          <span className="font-medium">{formatPrice(cost)}</span>
                           <Button
                             variant="ghost"
                             size="icon"

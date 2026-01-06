@@ -6,12 +6,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
-import MenuItems from "./pages/MenuItems";
+import FoodItems from "./pages/FoodItems";
 import Ingredients from "./pages/Ingredients";
-import Recipes from "./pages/Recipes";
-import Stock from "./pages/Stock";
+import RecipeManagement from "./pages/RecipeManagement";
+import StoreStock from "./pages/StoreStock";
+import KitchenStock from "./pages/KitchenStock";
 import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
+import StaffManagement from "./pages/StaffManagement";
 import RestaurantSettings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -27,12 +29,16 @@ const App = () => (
           <Route element={<MainLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/pos" element={<POS />} />
-            <Route path="/menu" element={<MenuItems />} />
+            <Route path="/food-items" element={<FoodItems />} />
+            <Route path="/menu" element={<FoodItems />} />
             <Route path="/ingredients" element={<Ingredients />} />
-            <Route path="/recipes" element={<Recipes />} />
-            <Route path="/stock" element={<Stock />} />
+            <Route path="/recipes" element={<RecipeManagement />} />
+            <Route path="/store-stock" element={<StoreStock />} />
+            <Route path="/stock" element={<StoreStock />} />
+            <Route path="/kitchen-stock" element={<KitchenStock />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/staff" element={<StaffManagement />} />
             <Route path="/settings" element={<RestaurantSettings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
