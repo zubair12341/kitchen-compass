@@ -60,6 +60,18 @@ export interface Waiter {
   isActive: boolean;
 }
 
+export type UserRole = 'admin' | 'manager' | 'pos_user';
+
+export interface Staff {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: Date;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -129,6 +141,13 @@ export interface IngredientCategory {
   name: string;
 }
 
+export interface InvoiceSettings {
+  title: string;
+  footer: string;
+  showLogo: boolean;
+  showTaxBreakdown: boolean;
+}
+
 export interface RestaurantSettings {
   name: string;
   address: string;
@@ -136,4 +155,12 @@ export interface RestaurantSettings {
   taxRate: number;
   currency: string;
   currencySymbol: string;
+  invoice: InvoiceSettings;
 }
+
+// Role permissions
+export const rolePermissions: Record<UserRole, string[]> = {
+  admin: ['dashboard', 'pos', 'menu', 'ingredients', 'recipes', 'store_stock', 'kitchen_stock', 'orders', 'reports', 'settings', 'staff'],
+  manager: ['dashboard', 'pos', 'menu', 'ingredients', 'recipes', 'store_stock', 'kitchen_stock', 'orders', 'reports'],
+  pos_user: ['pos', 'orders'],
+};
