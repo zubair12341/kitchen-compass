@@ -99,8 +99,11 @@ export default function POS() {
     setSelectedTableId(tableId);
 
     if (table.status === 'occupied' && table.currentOrderId) {
-      // Load existing order for editing
-      loadOrderToCart(table.currentOrderId);
+      // Load existing order for editing and pre-select waiter
+      const result = loadOrderToCart(table.currentOrderId);
+      if (result?.waiterId) {
+        setSelectedWaiterId(result.waiterId);
+      }
       toast.info('Editing existing order for Table ' + table.number);
     }
   };
@@ -388,8 +391,14 @@ export default function POS() {
     );
   }
 
-  // Table Selection for Dine-In
+  // Table Selection for Dine-In - grouped by floor
   if (orderType === 'dine-in' && !selectedTableId) {
+    const floors = [
+      { id: 'ground', name: 'Ground Floor', icon: '🏠' },
+      { id: 'first', name: 'First Floor', icon: '🏢' },
+      { id: 'family', name: 'Family Hall', icon: '👨‍👩‍👧‍👦' },
+    ] as const;
+
     return (
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center gap-4">
@@ -402,26 +411,39 @@ export default function POS() {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
-          {tables.map((table) => (
-            <button
-              key={table.id}
-              onClick={() => handleTableSelect(table.id)}
-              className={cn(
-                'flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all',
-                table.status === 'available'
-                  ? 'bg-green-50 border-green-500 text-green-700 hover:bg-green-100'
-                  : 'bg-red-50 border-red-500 text-red-700 hover:bg-red-100'
-              )}
-            >
-              <span className="text-2xl font-bold">{table.number}</span>
-              <span className="text-xs mt-1">{table.capacity} seats</span>
-              <span className="text-xs font-medium mt-1">
-                {table.status === 'available' ? 'Available' : 'Occupied'}
-              </span>
-            </button>
-          ))}
-        </div>
+        {floors.map((floor) => {
+          const floorTables = tables.filter((t) => t.floor === floor.id);
+          if (floorTables.length === 0) return null;
+
+          return (
+            <div key={floor.id} className="space-y-3">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <span>{floor.icon}</span>
+                {floor.name}
+              </h2>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {floorTables.sort((a, b) => a.number - b.number).map((table) => (
+                  <button
+                    key={table.id}
+                    onClick={() => handleTableSelect(table.id)}
+                    className={cn(
+                      'flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all',
+                      table.status === 'available'
+                        ? 'bg-green-50 border-green-500 text-green-700 hover:bg-green-100'
+                        : 'bg-red-50 border-red-500 text-red-700 hover:bg-red-100'
+                    )}
+                  >
+                    <span className="text-xl font-bold">{table.number}</span>
+                    <span className="text-xs mt-1">{table.capacity} seats</span>
+                    <span className="text-xs font-medium mt-1">
+                      {table.status === 'available' ? 'Available' : 'Occupied'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }

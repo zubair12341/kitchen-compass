@@ -45,10 +45,13 @@ export interface CartItem {
   notes?: string;
 }
 
+export type TableFloor = 'ground' | 'first' | 'family';
+
 export interface Table {
   id: string;
   number: number;
   capacity: number;
+  floor: TableFloor;
   status: 'available' | 'occupied';
   currentOrderId?: string;
 }
@@ -108,6 +111,16 @@ export interface StockTransfer {
   fromLocation: 'store' | 'kitchen';
   toLocation: 'store' | 'kitchen';
   reason: string;
+  createdAt: Date;
+}
+
+export interface StockDeduction {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  ingredientId: string;
+  ingredientName: string;
+  quantity: number;
   createdAt: Date;
 }
 
