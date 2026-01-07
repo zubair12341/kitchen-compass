@@ -23,7 +23,7 @@ export default function StaffManagement() {
   // Table state
   const [showTableDialog, setShowTableDialog] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
-  const [tableForm, setTableForm] = useState({ number: '', capacity: '' });
+  const [tableForm, setTableForm] = useState({ number: '', capacity: '', floor: 'ground' as 'ground' | 'first' | 'family' });
 
   // Waiter state
   const [showWaiterDialog, setShowWaiterDialog] = useState(false);
@@ -45,10 +45,10 @@ export default function StaffManagement() {
   const handleOpenTableDialog = (table?: Table) => {
     if (table) {
       setEditingTable(table);
-      setTableForm({ number: table.number.toString(), capacity: table.capacity.toString() });
+      setTableForm({ number: table.number.toString(), capacity: table.capacity.toString(), floor: table.floor });
     } else {
       setEditingTable(null);
-      setTableForm({ number: '', capacity: '4' });
+      setTableForm({ number: '', capacity: '4', floor: 'ground' });
     }
     setShowTableDialog(true);
   };
@@ -67,10 +67,10 @@ export default function StaffManagement() {
     }
 
     if (editingTable) {
-      updateTable(editingTable.id, { number, capacity });
+      updateTable(editingTable.id, { number, capacity, floor: tableForm.floor });
       toast.success('Table updated');
     } else {
-      addTable({ number, capacity });
+      addTable({ number, capacity, floor: tableForm.floor });
       toast.success('Table added');
     }
     setShowTableDialog(false);
@@ -436,6 +436,19 @@ export default function StaffManagement() {
                 onChange={(e) => setTableForm({ ...tableForm, capacity: e.target.value })}
                 placeholder="4"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Floor</Label>
+              <Select value={tableForm.floor} onValueChange={(v: 'ground' | 'first' | 'family') => setTableForm({ ...tableForm, floor: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ground">Ground Floor</SelectItem>
+                  <SelectItem value="first">First Floor</SelectItem>
+                  <SelectItem value="family">Family Hall</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

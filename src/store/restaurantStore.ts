@@ -7,9 +7,11 @@ import {
   CartItem,
   Order,
   StockTransfer,
+  StockDeduction,
   LowStockAlert,
   IngredientCategory,
   Table,
+  TableFloor,
   Waiter,
   Staff,
   RestaurantSettings,
@@ -29,6 +31,7 @@ interface RestaurantState {
   deleteTable: (id: string) => void;
   occupyTable: (tableId: string, orderId: string) => void;
   freeTable: (tableId: string) => void;
+  getTablesByFloor: (floor: TableFloor) => Table[];
 
   // Waiters
   waiters: Waiter[];
@@ -55,8 +58,10 @@ interface RestaurantState {
   addStoreStock: (ingredientId: string, quantity: number, reason?: string) => void;
   transferToKitchen: (ingredientId: string, quantity: number) => void;
   transferToStore: (ingredientId: string, quantity: number) => void;
-  deductKitchenStock: (ingredientId: string, quantity: number) => void;
+  deductKitchenStock: (ingredientId: string, quantity: number, orderId?: string, orderNumber?: string) => void;
   stockTransfers: StockTransfer[];
+  stockDeductions: StockDeduction[];
+  getStockDeductionsByOrder: (orderId: string) => StockDeduction[];
 
   // Menu Items
   menuItems: MenuItem[];
@@ -74,8 +79,8 @@ interface RestaurantState {
   removeFromCart: (menuItemId: string) => void;
   clearCart: () => void;
   addCartItemNote: (menuItemId: string, note: string) => void;
-  loadOrderToCart: (orderId: string) => void;
-
+  loadOrderToCart: (orderId: string) => { order: Order; waiterId?: string } | null;
+  getOrderById: (orderId: string) => Order | undefined;
   // Orders
   orders: Order[];
   currentEditingOrderId: string | null;
@@ -125,20 +130,23 @@ const defaultSettings: RestaurantSettings = {
   },
 };
 
-// Sample Tables
+// Sample Tables - categorized by floor
 const initialTables: Table[] = [
-  { id: '1', number: 1, capacity: 4, status: 'available' },
-  { id: '2', number: 2, capacity: 4, status: 'available' },
-  { id: '3', number: 3, capacity: 2, status: 'available' },
-  { id: '4', number: 4, capacity: 6, status: 'available' },
-  { id: '5', number: 5, capacity: 4, status: 'available' },
-  { id: '6', number: 6, capacity: 8, status: 'available' },
-  { id: '7', number: 7, capacity: 2, status: 'available' },
-  { id: '8', number: 8, capacity: 4, status: 'available' },
-  { id: '9', number: 9, capacity: 6, status: 'available' },
-  { id: '10', number: 10, capacity: 4, status: 'available' },
-  { id: '11', number: 11, capacity: 2, status: 'available' },
-  { id: '12', number: 12, capacity: 8, status: 'available' },
+  // Ground Floor Tables (1-4)
+  { id: '1', number: 1, capacity: 4, floor: 'ground', status: 'available' },
+  { id: '2', number: 2, capacity: 4, floor: 'ground', status: 'available' },
+  { id: '3', number: 3, capacity: 2, floor: 'ground', status: 'available' },
+  { id: '4', number: 4, capacity: 6, floor: 'ground', status: 'available' },
+  // First Floor Tables (5-8)
+  { id: '5', number: 5, capacity: 4, floor: 'first', status: 'available' },
+  { id: '6', number: 6, capacity: 8, floor: 'first', status: 'available' },
+  { id: '7', number: 7, capacity: 2, floor: 'first', status: 'available' },
+  { id: '8', number: 8, capacity: 4, floor: 'first', status: 'available' },
+  // Family Hall Tables (9-12)
+  { id: '9', number: 9, capacity: 6, floor: 'family', status: 'available' },
+  { id: '10', number: 10, capacity: 8, floor: 'family', status: 'available' },
+  { id: '11', number: 11, capacity: 10, floor: 'family', status: 'available' },
+  { id: '12', number: 12, capacity: 12, floor: 'family', status: 'available' },
 ];
 
 // Sample Waiters
@@ -383,6 +391,7 @@ export const useRestaurantStore = create<RestaurantState>()(
       cart: [],
       orders: [],
       stockTransfers: [],
+      stockDeductions: [],
       currentEditingOrderId: null,
 
       // Settings
@@ -445,6 +454,10 @@ export const useRestaurantStore = create<RestaurantState>()(
               : table
           ),
         }));
+      },
+
+      getTablesByFloor: (floor) => {
+        return get().tables.filter((t) => t.floor === floor);
       },
 
       // Waiter Management
@@ -628,14 +641,31 @@ export const useRestaurantStore = create<RestaurantState>()(
         });
       },
 
-      deductKitchenStock: (ingredientId, quantity) => {
+      deductKitchenStock: (ingredientId, quantity, orderId, orderNumber) => {
+        const ingredient = get().ingredients.find((i) => i.id === ingredientId);
         set((state) => ({
           ingredients: state.ingredients.map((ing) =>
             ing.id === ingredientId
               ? { ...ing, kitchenStock: Math.max(0, ing.kitchenStock - quantity), updatedAt: new Date() }
               : ing
           ),
+          stockDeductions: orderId && orderNumber ? [
+            ...state.stockDeductions,
+            {
+              id: generateId(),
+              orderId,
+              orderNumber,
+              ingredientId,
+              ingredientName: ingredient?.name || 'Unknown',
+              quantity,
+              createdAt: new Date(),
+            },
+          ] : state.stockDeductions,
         }));
+      },
+
+      getStockDeductionsByOrder: (orderId) => {
+        return get().stockDeductions.filter((d) => d.orderId === orderId);
       },
 
       // Menu Management
@@ -747,7 +777,7 @@ export const useRestaurantStore = create<RestaurantState>()(
       loadOrderToCart: (orderId) => {
         const { orders, menuItems } = get();
         const order = orders.find((o) => o.id === orderId);
-        if (!order) return;
+        if (!order) return null;
 
         const cartItems: CartItem[] = [];
         order.items.forEach((item) => {
@@ -765,6 +795,12 @@ export const useRestaurantStore = create<RestaurantState>()(
           cart: cartItems,
           currentEditingOrderId: orderId,
         });
+
+        return { order, waiterId: order.waiterId };
+      },
+
+      getOrderById: (orderId) => {
+        return get().orders.find((o) => o.id === orderId);
       },
 
       setCurrentEditingOrderId: (orderId) => {

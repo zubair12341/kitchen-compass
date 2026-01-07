@@ -1,110 +1,68 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  UtensilsCrossed,
-  Package,
-  BookOpen,
-  FileText,
-  Settings,
-  ChefHat,
-  AlertTriangle,
-  Warehouse,
-  Users,
-} from 'lucide-react';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRestaurantStore } from '@/store/restaurantStore';
-import { cn } from '@/lib/utils';
-
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'POS', href: '/pos', icon: ShoppingCart },
-  { name: 'Food Items', href: '/food-items', icon: UtensilsCrossed },
-  { name: 'Recipes', href: '/recipes', icon: BookOpen },
-  { name: 'Ingredients', href: '/ingredients', icon: Package },
-  { name: 'Store Stock', href: '/store-stock', icon: Warehouse },
-  { name: 'Kitchen Stock', href: '/kitchen-stock', icon: ChefHat },
-  { name: 'Orders', href: '/orders', icon: FileText },
-  { name: 'Reports', href: '/reports', icon: FileText },
-  { name: 'Staff', href: '/staff', icon: Users },
-  { name: 'Settings', href: '/settings', icon: Settings },
-];
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/AppSidebar';
+import { Button } from '@/components/ui/button';
 
 export default function MainLayout() {
   const location = useLocation();
-  const getLowStockAlerts = useRestaurantStore((state) => state.getLowStockAlerts);
+  const { user, isLoading, hasPermission } = useAuth();
   const settings = useRestaurantStore((state) => state.settings);
-  const lowStockAlerts = getLowStockAlerts();
+
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Check route permission
+  const currentPath = location.pathname.replace('/', '') || 'dashboard';
+  const pathPermission = currentPath === '' ? 'dashboard' : currentPath;
+  
+  // Allow pos-users to access root (redirect to POS)
+  if (!hasPermission(pathPermission) && pathPermission !== 'dashboard') {
+    // Redirect to POS for pos_user role or dashboard for others
+    return <Navigate to={hasPermission('pos') ? '/pos' : '/'} replace />;
+  }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="hidden w-64 flex-shrink-0 lg:flex lg:flex-col" style={{ background: 'var(--gradient-sidebar)' }}>
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
-            <ChefHat className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-lg font-display font-bold text-sidebar-accent-foreground">{settings.name}</h1>
-            <p className="text-xs text-sidebar-foreground/60">Restaurant POS</p>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-          {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
-            const showBadge = (item.href === '/store-stock' || item.href === '/kitchen-stock') && lowStockAlerts.length > 0;
-            
-            return (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={cn(
-                  'sidebar-nav-item',
-                  isActive && 'active'
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                <span>{item.name}</span>
-                {showBadge && (
-                  <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-                    {lowStockAlerts.length}
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* Low Stock Alert Footer */}
-        {lowStockAlerts.length > 0 && (
-          <div className="border-t border-sidebar-border p-4">
-            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3">
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-              <div className="flex-1">
-                <p className="text-xs font-medium text-destructive">Low Stock Alert</p>
-                <p className="text-xs text-sidebar-foreground/60">{lowStockAlerts.length} items below threshold</p>
-              </div>
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Mobile Header with Toggle */}
+          <header className="flex h-14 items-center gap-4 border-b border-border bg-card px-4 lg:px-6">
+            <SidebarTrigger asChild>
+              <Button variant="ghost" size="icon" className="shrink-0">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle navigation menu</span>
+              </Button>
+            </SidebarTrigger>
+            <div className="flex-1">
+              <h1 className="font-display font-bold lg:hidden">{settings.name}</h1>
             </div>
-          </div>
-        )}
-      </aside>
+          </header>
 
-      {/* Mobile Header */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center gap-4 border-b border-border bg-card px-6 lg:hidden">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <ChefHat className="h-5 w-5" />
-          </div>
-          <h1 className="font-display font-bold">{settings.name}</h1>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-background p-6">
-          <Outlet />
-        </main>
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto bg-background p-4 lg:p-6">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
