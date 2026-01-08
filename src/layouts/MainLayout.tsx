@@ -1,10 +1,10 @@
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
-import { Button } from '@/components/ui/button';
+
 
 export default function MainLayout() {
   const location = useLocation();
@@ -46,12 +46,7 @@ export default function MainLayout() {
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Mobile Header with Toggle */}
           <header className="flex h-14 items-center gap-4 border-b border-border bg-card px-4 lg:px-6">
-            <SidebarTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
-              </Button>
-            </SidebarTrigger>
+            <SidebarTrigger className="shrink-0" />
             <div className="flex-1">
               <h1 className="font-display font-bold lg:hidden">{settings.name}</h1>
             </div>
