@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
   Search,
   Plus,
@@ -74,7 +74,6 @@ export default function POS() {
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [discount, setDiscount] = useState(0);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
 
   const isEditingExistingOrder = !!currentEditingOrderId;
 
@@ -86,8 +85,9 @@ export default function POS() {
   });
 
   // Calculate totals
+  const gstEnabled = settings.invoice?.gstEnabled ?? true;
   const subtotal = cart.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
-  const tax = subtotal * (settings.taxRate / 100);
+  const tax = gstEnabled ? subtotal * (settings.taxRate / 100) : 0;
   const total = subtotal + tax - discount;
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
@@ -193,19 +193,10 @@ export default function POS() {
   };
 
   const printKitchenInvoice = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print');
-      return;
-    }
-
     const waiter = waiters.find((w) => w.id === selectedWaiterId);
     const table = tables.find((t) => t.id === selectedTableId);
 
-    printWindow.document.write(`
+    const kitchenHtml = `
       <html>
         <head>
           <title>Kitchen Order</title>
@@ -255,10 +246,32 @@ export default function POS() {
           </div>
         </body>
       </html>
-    `);
+    `;
 
-    printWindow.document.close();
-    printWindow.print();
+    // Print using hidden iframe (same page, no popup)
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.left = '-9999px';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(kitchenHtml);
+      iframeDoc.close();
+
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+
+      // Clean up iframe after print
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }
+
     setShowKitchenInvoice(false);
     toast.success('Kitchen invoice printed!');
   };
@@ -266,13 +279,7 @@ export default function POS() {
   const printCustomerInvoice = () => {
     if (!completedOrder) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print');
-      return;
-    }
-
-    printWindow.document.write(`
+    const invoiceHtml = `
       <html>
         <head>
           <title>Invoice - ${completedOrder.orderNumber}</title>
@@ -294,7 +301,7 @@ export default function POS() {
         </head>
         <body>
           <div class="header">
-            <h1>${settings.name}</h1>
+            <h1>${settings.invoice?.title || settings.name}</h1>
             <p>${settings.address}</p>
             <p>Tel: ${settings.phone}</p>
             <p>================================</p>
@@ -321,22 +328,43 @@ export default function POS() {
           </div>
           <div class="totals">
             <div class="total-row"><span>Subtotal:</span> <span>${settings.currencySymbol} ${completedOrder.subtotal.toLocaleString()}</span></div>
-            <div class="total-row"><span>GST (${settings.taxRate}%):</span> <span>${settings.currencySymbol} ${completedOrder.tax.toLocaleString()}</span></div>
+            ${gstEnabled ? `<div class="total-row"><span>GST (${settings.taxRate}%):</span> <span>${settings.currencySymbol} ${completedOrder.tax.toLocaleString()}</span></div>` : ''}
             ${completedOrder.discount > 0 ? `<div class="total-row"><span>Discount:</span> <span>-${settings.currencySymbol} ${completedOrder.discount.toLocaleString()}</span></div>` : ''}
             <div class="total-row grand-total"><span>TOTAL:</span> <span>${settings.currencySymbol} ${completedOrder.total.toLocaleString()}</span></div>
           </div>
           <div class="footer">
             <p>Payment: ${completedOrder.paymentMethod.toUpperCase()}</p>
             <p>================================</p>
-            <p>Thank you for dining with us!</p>
+            <p>${settings.invoice?.footer || 'Thank you for dining with us!'}</p>
             <p>شکریہ - Shukriya!</p>
           </div>
         </body>
       </html>
-    `);
+    `;
 
-    printWindow.document.close();
-    printWindow.print();
+    // Print using hidden iframe (same page, no popup)
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.left = '-9999px';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(invoiceHtml);
+      iframeDoc.close();
+
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+
+      // Clean up iframe after print
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    }
   };
 
   // Order Type Selection Screen
@@ -797,7 +825,7 @@ export default function POS() {
           <DialogHeader>
             <DialogTitle>Kitchen Invoice Preview</DialogTitle>
           </DialogHeader>
-          <div ref={printRef} className="space-y-4 py-4 font-mono text-sm">
+          <div className="space-y-4 py-4 font-mono text-sm">
             <div className="text-center border-b-2 border-dashed pb-3">
               <p className="text-lg font-bold">🍳 KITCHEN ORDER</p>
               <p className="text-xs">{settings.name}</p>

@@ -127,6 +127,7 @@ const defaultSettings: RestaurantSettings = {
     footer: 'Thank you for dining with us! Visit again.',
     showLogo: true,
     showTaxBreakdown: true,
+    gstEnabled: true,
   },
 };
 

@@ -35,6 +35,7 @@ export default function RestaurantSettings() {
   const [invoiceFooter, setInvoiceFooter] = useState(settings.invoice?.footer || 'Thank you for dining with us!');
   const [showLogo, setShowLogo] = useState(settings.invoice?.showLogo ?? true);
   const [showTaxBreakdown, setShowTaxBreakdown] = useState(settings.invoice?.showTaxBreakdown ?? true);
+  const [gstEnabled, setGstEnabled] = useState(settings.invoice?.gstEnabled ?? true);
 
   // Notifications
   const [lowStockAlert, setLowStockAlert] = useState(true);
@@ -60,6 +61,7 @@ export default function RestaurantSettings() {
       footer: invoiceFooter,
       showLogo,
       showTaxBreakdown,
+      gstEnabled,
     });
     toast.success('Invoice settings saved');
   };
@@ -219,6 +221,13 @@ export default function RestaurantSettings() {
                   </div>
                   <Switch checked={showTaxBreakdown} onCheckedChange={setShowTaxBreakdown} />
                 </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Enable GST</p>
+                    <p className="text-sm text-muted-foreground">Apply GST tax to all orders</p>
+                  </div>
+                  <Switch checked={gstEnabled} onCheckedChange={setGstEnabled} />
+                </div>
               </div>
               <Separator />
 
@@ -238,7 +247,7 @@ export default function RestaurantSettings() {
                       <span>Rs. 550</span>
                     </div>
                   </div>
-                  {showTaxBreakdown && (
+                  {showTaxBreakdown && gstEnabled && (
                     <div className="text-left text-sm">
                       <div className="flex justify-between text-muted-foreground">
                         <span>Subtotal</span>
@@ -252,7 +261,7 @@ export default function RestaurantSettings() {
                   )}
                   <div className="flex justify-between font-bold mt-2 pt-2 border-t">
                     <span>Total</span>
-                    <span>Rs. {(1000 * (1 + (parseFloat(taxRate) || 16) / 100)).toFixed(0)}</span>
+                    <span>Rs. {gstEnabled ? (1000 * (1 + (parseFloat(taxRate) || 16) / 100)).toFixed(0) : '1,000'}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-4 italic">{invoiceFooter}</p>
                 </div>
