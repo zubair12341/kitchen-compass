@@ -159,6 +159,7 @@ export interface InvoiceSettings {
   footer: string;
   showLogo: boolean;
   showTaxBreakdown: boolean;
+  gstEnabled: boolean;
 }
 
 export interface RestaurantSettings {
