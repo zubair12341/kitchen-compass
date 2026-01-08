@@ -31,10 +31,10 @@ export default function RestaurantSettings() {
   const [taxRate, setTaxRate] = useState(settings.taxRate.toString());
   
   // Invoice Settings
-  const [invoiceTitle, setInvoiceTitle] = useState(settings.invoice.title);
-  const [invoiceFooter, setInvoiceFooter] = useState(settings.invoice.footer);
-  const [showLogo, setShowLogo] = useState(settings.invoice.showLogo);
-  const [showTaxBreakdown, setShowTaxBreakdown] = useState(settings.invoice.showTaxBreakdown);
+  const [invoiceTitle, setInvoiceTitle] = useState(settings.invoice?.title || settings.name);
+  const [invoiceFooter, setInvoiceFooter] = useState(settings.invoice?.footer || 'Thank you for dining with us!');
+  const [showLogo, setShowLogo] = useState(settings.invoice?.showLogo ?? true);
+  const [showTaxBreakdown, setShowTaxBreakdown] = useState(settings.invoice?.showTaxBreakdown ?? true);
 
   // Notifications
   const [lowStockAlert, setLowStockAlert] = useState(true);
