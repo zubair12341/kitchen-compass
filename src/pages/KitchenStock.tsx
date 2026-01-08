@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChefHat, ArrowLeft, Package, AlertTriangle, Minus } from 'lucide-react';
+import { ChefHat, ArrowLeft, Package, AlertTriangle, History } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,16 +7,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 export default function KitchenStock() {
-  const { ingredients, ingredientCategories, settings, transferToStore, getLowStockAlerts } = useRestaurantStore();
+  const { ingredients, ingredientCategories, settings, transferToStore, getLowStockAlerts, stockDeductions } = useRestaurantStore();
   const [showReturnDialog, setShowReturnDialog] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
 
   const lowStockAlerts = getLowStockAlerts();
   const kitchenIngredients = ingredients.filter((ing) => ing.kitchenStock > 0);
+
+  // Get recent stock deductions sorted by date
+  const recentDeductions = [...stockDeductions]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 50);
+
+  const getIngredientName = (id: string) => ingredients.find((i) => i.id === id)?.name || 'Unknown';
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
@@ -110,72 +119,130 @@ export default function KitchenStock() {
         </Card>
       </div>
 
-      {/* Kitchen Stock by Category */}
-      {ingredientCategories.map((category) => {
-        const categoryIngredients = kitchenIngredients.filter((ing) => ing.category === category.id);
-        if (categoryIngredients.length === 0) return null;
+      <Tabs defaultValue="stock" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="stock">Current Stock</TabsTrigger>
+          <TabsTrigger value="history" className="gap-2">
+            <History className="h-4 w-4" />
+            Deduction History
+          </TabsTrigger>
+        </TabsList>
 
-        return (
-          <Card key={category.id} className="section-card">
+        <TabsContent value="stock">
+          {/* Kitchen Stock by Category */}
+          {ingredientCategories.map((category) => {
+            const categoryIngredients = kitchenIngredients.filter((ing) => ing.category === category.id);
+            if (categoryIngredients.length === 0) return null;
+
+            return (
+              <Card key={category.id} className="section-card mb-4">
+                <CardHeader>
+                  <CardTitle className="text-lg">{category.name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-hidden rounded-lg border">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Ingredient</th>
+                          <th>Unit</th>
+                          <th>Kitchen Stock</th>
+                          <th>Cost/Unit</th>
+                          <th>Total Value</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryIngredients.map((ing) => {
+                          const totalStock = ing.storeStock + ing.kitchenStock;
+                          const isLow = totalStock <= ing.lowStockThreshold;
+                          const value = ing.kitchenStock * ing.costPerUnit;
+
+                          return (
+                            <tr key={ing.id} className={isLow ? 'bg-destructive/5' : ''}>
+                              <td>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                                    <ChefHat className="h-5 w-5 text-primary" />
+                                  </div>
+                                  <span className="font-medium">{ing.name}</span>
+                                </div>
+                              </td>
+                              <td>{ing.unit}</td>
+                              <td className="font-medium">{ing.kitchenStock.toFixed(2)}</td>
+                              <td className="text-muted-foreground">{formatPrice(ing.costPerUnit)}</td>
+                              <td className="font-medium">{formatPrice(value)}</td>
+                              <td>
+                                <span className={isLow ? 'badge-destructive' : 'badge-success'}>
+                                  {isLow ? 'Low' : 'OK'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {kitchenIngredients.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <ChefHat className="h-12 w-12 text-muted-foreground/50" />
+              <p className="mt-4 font-medium">No items in kitchen</p>
+              <p className="text-sm text-muted-foreground">Transfer items from store to kitchen</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history">
+          <Card className="section-card">
             <CardHeader>
-              <CardTitle className="text-lg">{category.name}</CardTitle>
+              <CardTitle className="text-lg">Stock Deduction History</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-hidden rounded-lg border">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Ingredient</th>
-                      <th>Unit</th>
-                      <th>Kitchen Stock</th>
-                      <th>Cost/Unit</th>
-                      <th>Total Value</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {categoryIngredients.map((ing) => {
-                      const totalStock = ing.storeStock + ing.kitchenStock;
-                      const isLow = totalStock <= ing.lowStockThreshold;
-                      const value = ing.kitchenStock * ing.costPerUnit;
-
-                      return (
-                        <tr key={ing.id} className={isLow ? 'bg-destructive/5' : ''}>
-                          <td>
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                                <ChefHat className="h-5 w-5 text-primary" />
-                              </div>
-                              <span className="font-medium">{ing.name}</span>
-                            </div>
+              {recentDeductions.length > 0 ? (
+                <div className="overflow-hidden rounded-lg border">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date & Time</th>
+                        <th>Ingredient</th>
+                        <th>Quantity</th>
+                        <th>Order #</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentDeductions.map((deduction) => (
+                        <tr key={deduction.id}>
+                          <td className="text-muted-foreground">
+                            {format(new Date(deduction.createdAt), 'dd MMM yyyy, hh:mm a')}
                           </td>
-                          <td>{ing.unit}</td>
-                          <td className="font-medium">{ing.kitchenStock.toFixed(2)}</td>
-                          <td className="text-muted-foreground">{formatPrice(ing.costPerUnit)}</td>
-                          <td className="font-medium">{formatPrice(value)}</td>
+                          <td className="font-medium">{getIngredientName(deduction.ingredientId)}</td>
+                          <td>{deduction.quantity.toFixed(2)}</td>
                           <td>
-                            <span className={isLow ? 'badge-destructive' : 'badge-success'}>
-                              {isLow ? 'Low' : 'OK'}
+                            <span className="px-2 py-1 bg-primary/10 text-primary rounded text-sm">
+                              {deduction.orderNumber || 'Manual'}
                             </span>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <History className="h-12 w-12 text-muted-foreground/50" />
+                  <p className="mt-4 font-medium">No deductions yet</p>
+                  <p className="text-sm text-muted-foreground">Stock deductions will appear here when orders are completed</p>
+                </div>
+              )}
             </CardContent>
           </Card>
-        );
-      })}
-
-      {kitchenIngredients.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <ChefHat className="h-12 w-12 text-muted-foreground/50" />
-          <p className="mt-4 font-medium">No items in kitchen</p>
-          <p className="text-sm text-muted-foreground">Transfer items from store to kitchen</p>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
 
       {/* Return to Store Dialog */}
       <Dialog open={showReturnDialog} onOpenChange={setShowReturnDialog}>

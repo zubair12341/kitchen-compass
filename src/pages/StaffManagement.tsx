@@ -164,6 +164,50 @@ export default function StaffManagement() {
     }
   };
 
+  const getFloorLabel = (floor: 'ground' | 'first' | 'family') => {
+    switch (floor) {
+      case 'ground': return 'Ground Floor';
+      case 'first': return 'First Floor';
+      case 'family': return 'Family Hall';
+    }
+  };
+
+  // Table Card Component
+  const TableCard = ({ table, onEdit, onDelete }: { table: Table; onEdit: (t: Table) => void; onDelete: (id: string) => void }) => (
+    <div
+      className={`relative rounded-xl border-2 p-4 ${
+        table.status === 'occupied'
+          ? 'border-destructive bg-destructive/5'
+          : 'border-success bg-success/5'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-2xl font-bold">Table {table.number}</span>
+        <span className={`text-xs px-2 py-1 rounded-full ${
+          table.status === 'occupied' ? 'bg-destructive text-destructive-foreground' : 'bg-success text-success-foreground'
+        }`}>
+          {table.status}
+        </span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-1">Capacity: {table.capacity} seats</p>
+      <p className="text-xs text-muted-foreground mb-3">{getFloorLabel(table.floor)}</p>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => onEdit(table)}>
+          <Edit2 className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={() => onDelete(table.id)}
+          disabled={table.status === 'occupied'}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
@@ -192,42 +236,69 @@ export default function StaffManagement() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {tables.sort((a, b) => a.number - b.number).map((table) => (
-                  <div
-                    key={table.id}
-                    className={`relative rounded-xl border-2 p-4 ${
-                      table.status === 'occupied'
-                        ? 'border-destructive bg-destructive/5'
-                        : 'border-success bg-success/5'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-2xl font-bold">Table {table.number}</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        table.status === 'occupied' ? 'bg-destructive text-destructive-foreground' : 'bg-success text-success-foreground'
-                      }`}>
-                        {table.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">Capacity: {table.capacity} seats</p>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleOpenTableDialog(table)}>
-                        <Edit2 className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteTable(table.id)}
-                        disabled={table.status === 'occupied'}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              {/* Ground Floor */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                  Ground Floor
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {tables
+                    .filter((t) => t.floor === 'ground')
+                    .sort((a, b) => a.number - b.number)
+                    .map((table) => (
+                      <TableCard
+                        key={table.id}
+                        table={table}
+                        onEdit={handleOpenTableDialog}
+                        onDelete={handleDeleteTable}
+                      />
+                    ))}
+                </div>
               </div>
+
+              {/* First Floor */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                  First Floor
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {tables
+                    .filter((t) => t.floor === 'first')
+                    .sort((a, b) => a.number - b.number)
+                    .map((table) => (
+                      <TableCard
+                        key={table.id}
+                        table={table}
+                        onEdit={handleOpenTableDialog}
+                        onDelete={handleDeleteTable}
+                      />
+                    ))}
+                </div>
+              </div>
+
+              {/* Family Hall */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-purple-500"></span>
+                  Family Hall
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {tables
+                    .filter((t) => t.floor === 'family')
+                    .sort((a, b) => a.number - b.number)
+                    .map((table) => (
+                      <TableCard
+                        key={table.id}
+                        table={table}
+                        onEdit={handleOpenTableDialog}
+                        onDelete={handleDeleteTable}
+                      />
+                    ))}
+                </div>
+              </div>
+
               {tables.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No tables configured. Add your first table.
