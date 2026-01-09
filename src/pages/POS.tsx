@@ -16,6 +16,8 @@ import {
   ArrowLeft,
   Receipt,
   Users,
+  Percent,
+  XCircle,
 } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
@@ -38,7 +40,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Order } from '@/types/restaurant';
+import { Order, DiscountType } from '@/types/restaurant';
 
 type OrderTypeSelection = 'dine-in' | 'online' | 'takeaway' | null;
 
@@ -58,9 +60,8 @@ export default function POS() {
     completeOrder,
     updateOrder,
     loadOrderToCart,
-    getTableOrder,
+    cancelOrder,
     freeTable,
-    orders,
   } = useRestaurantStore();
 
   const [orderType, setOrderType] = useState<OrderTypeSelection>(null);
@@ -69,10 +70,12 @@ export default function POS() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showKitchenInvoice, setShowKitchenInvoice] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [customerName, setCustomerName] = useState('');
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [discountType, setDiscountType] = useState<DiscountType>('fixed');
+  const [discountValue, setDiscountValue] = useState(0);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
   const isEditingExistingOrder = !!currentEditingOrderId;
@@ -88,7 +91,10 @@ export default function POS() {
   const gstEnabled = settings.invoice?.gstEnabled ?? true;
   const subtotal = cart.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
   const tax = gstEnabled ? subtotal * (settings.taxRate / 100) : 0;
-  const total = subtotal + tax - discount;
+  const discountAmount = discountType === 'percentage' 
+    ? (subtotal * discountValue) / 100 
+    : discountValue;
+  const total = subtotal + tax - discountAmount;
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
@@ -104,6 +110,10 @@ export default function POS() {
       if (result?.waiterId) {
         setSelectedWaiterId(result.waiterId);
       }
+      if (result?.order) {
+        setDiscountType(result.order.discountType || 'fixed');
+        setDiscountValue(result.order.discountValue || 0);
+      }
       toast.info('Editing existing order for Table ' + table.number);
     }
   };
@@ -114,7 +124,8 @@ export default function POS() {
     setSelectedTableId(null);
     setCustomerName('');
     setSelectedWaiterId('');
-    setDiscount(0);
+    setDiscountType('fixed');
+    setDiscountValue(0);
   };
 
   const handleCheckout = () => {
@@ -129,6 +140,18 @@ export default function POS() {
     setShowCheckout(true);
   };
 
+  const handleCancelOrder = () => {
+    if (currentEditingOrderId) {
+      cancelOrder(currentEditingOrderId);
+      if (selectedTableId) {
+        freeTable(selectedTableId);
+      }
+      toast.success('Order cancelled');
+      setShowCancelConfirm(false);
+      handleBackToOrderType();
+    }
+  };
+
   const handleCompleteOrder = () => {
     let order: Order | null = null;
 
@@ -139,7 +162,9 @@ export default function POS() {
         tableId: selectedTableId || undefined,
         waiterId: selectedWaiterId || undefined,
         orderType: orderType!,
-        discount,
+        discount: discountAmount,
+        discountType,
+        discountValue,
       });
       toast.success('Order updated successfully!');
     } else {
@@ -149,7 +174,9 @@ export default function POS() {
         tableId: selectedTableId || undefined,
         waiterId: selectedWaiterId || undefined,
         orderType: orderType!,
-        discount,
+        discount: discountAmount,
+        discountType,
+        discountValue,
       });
       if (order) {
         toast.success(`Order ${order.orderNumber} placed!`, {
@@ -162,7 +189,8 @@ export default function POS() {
       setCompletedOrder(order);
       setShowCheckout(false);
       setCustomerName('');
-      setDiscount(0);
+      setDiscountType('fixed');
+      setDiscountValue(0);
     }
   };
 
@@ -329,7 +357,7 @@ export default function POS() {
           <div class="totals">
             <div class="total-row"><span>Subtotal:</span> <span>${settings.currencySymbol} ${completedOrder.subtotal.toLocaleString()}</span></div>
             ${gstEnabled ? `<div class="total-row"><span>GST (${settings.taxRate}%):</span> <span>${settings.currencySymbol} ${completedOrder.tax.toLocaleString()}</span></div>` : ''}
-            ${completedOrder.discount > 0 ? `<div class="total-row"><span>Discount:</span> <span>-${settings.currencySymbol} ${completedOrder.discount.toLocaleString()}</span></div>` : ''}
+            ${completedOrder.discount > 0 ? `<div class="total-row"><span>Discount${completedOrder.discountType === 'percentage' ? ` (${completedOrder.discountValue}%)` : ''}:</span> <span>-${settings.currencySymbol} ${completedOrder.discount.toLocaleString()}</span></div>` : ''}
             <div class="total-row grand-total"><span>TOTAL:</span> <span>${settings.currencySymbol} ${completedOrder.total.toLocaleString()}</span></div>
           </div>
           <div class="footer">
@@ -603,16 +631,29 @@ export default function POS() {
             <h2 className="text-lg font-semibold">
               {isEditingExistingOrder ? 'Edit Order' : 'Current Order'}
             </h2>
-            {cart.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearCart}
-                className="text-destructive hover:text-destructive"
-              >
-                Clear
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {isEditingExistingOrder && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+              )}
+              {cart.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearCart}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">{cart.length} items</p>
         </div>
@@ -675,14 +716,16 @@ export default function POS() {
               <span className="text-muted-foreground">Subtotal</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
-              <span>{formatPrice(tax)}</span>
-            </div>
-            {discount > 0 && (
+            {gstEnabled && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
+                <span>{formatPrice(tax)}</span>
+              </div>
+            )}
+            {discountAmount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
-                <span>Discount</span>
-                <span>-{formatPrice(discount)}</span>
+                <span>Discount {discountType === 'percentage' && `(${discountValue}%)`}</span>
+                <span>-{formatPrice(discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
@@ -732,16 +775,53 @@ export default function POS() {
             </div>
 
             {/* Discount */}
-            <div className="space-y-2">
-              <Label htmlFor="discount">Discount ({settings.currencySymbol})</Label>
-              <Input
-                id="discount"
-                type="number"
-                min="0"
-                value={discount || ''}
-                onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                placeholder="0"
-              />
+            <div className="space-y-3">
+              <Label>Discount</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={discountType === 'fixed' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDiscountType('fixed')}
+                  className="flex-1"
+                >
+                  <Banknote className="h-4 w-4 mr-1" />
+                  Fixed
+                </Button>
+                <Button
+                  type="button"
+                  variant={discountType === 'percentage' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setDiscountType('percentage')}
+                  className="flex-1"
+                >
+                  <Percent className="h-4 w-4 mr-1" />
+                  Percentage
+                </Button>
+              </div>
+              <div className="relative">
+                {discountType === 'fixed' ? (
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    {settings.currencySymbol}
+                  </span>
+                ) : (
+                  <Percent className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                )}
+                <Input
+                  type="number"
+                  min="0"
+                  max={discountType === 'percentage' ? 100 : undefined}
+                  value={discountValue || ''}
+                  onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                  placeholder="0"
+                  className="pl-10"
+                />
+              </div>
+              {discountAmount > 0 && (
+                <p className="text-sm text-green-600">
+                  Discount amount: -{formatPrice(discountAmount)}
+                </p>
+              )}
             </div>
 
             {/* Payment Method */}
@@ -791,14 +871,16 @@ export default function POS() {
                 <span>Subtotal</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span>GST ({settings.taxRate}%)</span>
-                <span>{formatPrice(tax)}</span>
-              </div>
-              {discount > 0 && (
+              {gstEnabled && (
+                <div className="flex justify-between text-sm">
+                  <span>GST ({settings.taxRate}%)</span>
+                  <span>{formatPrice(tax)}</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
-                  <span>Discount</span>
-                  <span>-{formatPrice(discount)}</span>
+                  <span>Discount {discountType === 'percentage' && `(${discountValue}%)`}</span>
+                  <span>-{formatPrice(discountAmount)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold border-t border-border pt-2">
@@ -814,6 +896,28 @@ export default function POS() {
             </Button>
             <Button onClick={handleCompleteOrder}>
               {isEditingExistingOrder ? 'Update' : 'Place Order'} ({formatPrice(total)})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Order?</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground">
+              Are you sure you want to cancel this order? This action cannot be undone and will free the table.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
+              Keep Order
+            </Button>
+            <Button variant="destructive" onClick={handleCancelOrder}>
+              Cancel Order
             </Button>
           </DialogFooter>
         </DialogContent>

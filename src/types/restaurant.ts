@@ -1,8 +1,18 @@
+export interface StockPurchase {
+  id: string;
+  ingredientId: string;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  purchaseDate: Date;
+  createdAt: Date;
+}
+
 export interface Ingredient {
   id: string;
   name: string;
   unit: string;
-  costPerUnit: number;
+  costPerUnit: number; // Weighted average cost
   storeStock: number;
   kitchenStock: number;
   lowStockThreshold: number;
@@ -70,10 +80,13 @@ export interface Staff {
   name: string;
   phone: string;
   email: string;
+  password: string;
   role: UserRole;
   isActive: boolean;
   createdAt: Date;
 }
+
+export type DiscountType = 'fixed' | 'percentage';
 
 export interface Order {
   id: string;
@@ -82,6 +95,8 @@ export interface Order {
   subtotal: number;
   tax: number;
   discount: number;
+  discountType: DiscountType;
+  discountValue: number; // Original value entered
   total: number;
   paymentMethod: 'cash' | 'card' | 'mobile';
   status: 'pending' | 'completed' | 'cancelled' | 'refunded';

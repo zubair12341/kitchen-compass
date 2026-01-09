@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Banknote, Calendar, Search, Trash2, TrendingDown, Receipt } from 'lucide-react';
+import { Plus, Banknote, Calendar, Search, Trash2, TrendingDown, Receipt, Edit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRestaurantStore } from '@/store/restaurantStore';
@@ -38,6 +38,7 @@ export default function DailyCosts() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [form, setForm] = useState({
@@ -73,7 +74,23 @@ export default function DailyCosts() {
     }
   };
 
-  const handleAddExpense = async () => {
+  const handleOpenDialog = (expense?: Expense) => {
+    if (expense) {
+      setEditingExpense(expense);
+      setForm({
+        category: expense.category,
+        description: expense.description || '',
+        amount: expense.amount.toString(),
+        expense_date: expense.expense_date,
+      });
+    } else {
+      setEditingExpense(null);
+      setForm({ category: '', description: '', amount: '', expense_date: format(new Date(), 'yyyy-MM-dd') });
+    }
+    setShowDialog(true);
+  };
+
+  const handleSaveExpense = async () => {
     if (!form.category || !form.amount) {
       toast.error('Please fill in all required fields');
       return;
@@ -86,23 +103,41 @@ export default function DailyCosts() {
     }
 
     try {
-      const { error } = await supabase.from('expenses').insert({
-        category: form.category,
-        description: form.description || null,
-        amount,
-        expense_date: form.expense_date,
-        created_by: user?.id,
-      });
+      if (editingExpense) {
+        // Update existing expense
+        const { error } = await supabase
+          .from('expenses')
+          .update({
+            category: form.category,
+            description: form.description || null,
+            amount,
+            expense_date: form.expense_date,
+          })
+          .eq('id', editingExpense.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success('Expense updated successfully');
+      } else {
+        // Add new expense
+        const { error } = await supabase.from('expenses').insert({
+          category: form.category,
+          description: form.description || null,
+          amount,
+          expense_date: form.expense_date,
+          created_by: user?.id,
+        });
 
-      toast.success('Expense added successfully');
+        if (error) throw error;
+        toast.success('Expense added successfully');
+      }
+
       setShowDialog(false);
+      setEditingExpense(null);
       setForm({ category: '', description: '', amount: '', expense_date: format(new Date(), 'yyyy-MM-dd') });
       fetchExpenses();
     } catch (error) {
-      console.error('Error adding expense:', error);
-      toast.error('Failed to add expense');
+      console.error('Error saving expense:', error);
+      toast.error('Failed to save expense');
     }
   };
 
@@ -214,7 +249,7 @@ export default function DailyCosts() {
             />
           </div>
         </div>
-        <Button onClick={() => setShowDialog(true)} className="gap-2">
+        <Button onClick={() => handleOpenDialog()} className="gap-2">
           <Plus className="h-4 w-4" />
           Add Expense
         </Button>
@@ -257,16 +292,27 @@ export default function DailyCosts() {
                         -{formatPrice(Number(expense.amount))}
                       </td>
                       <td className="text-right">
-                        {hasPermission('admin') && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteExpense(expense.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-1">
+                          {(hasPermission('admin') || hasPermission('manager')) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDialog(expense)}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {hasPermission('admin') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteExpense(expense.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -277,11 +323,11 @@ export default function DailyCosts() {
         </CardContent>
       </Card>
 
-      {/* Add Expense Dialog */}
+      {/* Add/Edit Expense Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Expense</DialogTitle>
+            <DialogTitle>{editingExpense ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -331,7 +377,7 @@ export default function DailyCosts() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddExpense}>Add Expense</Button>
+            <Button onClick={handleSaveExpense}>{editingExpense ? 'Update' : 'Add'} Expense</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

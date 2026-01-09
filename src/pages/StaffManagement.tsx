@@ -37,9 +37,10 @@ export default function StaffManagement() {
     name: string;
     phone: string;
     email: string;
+    password: string;
     role: UserRole;
     isActive: boolean;
-  }>({ name: '', phone: '', email: '', role: 'pos_user', isActive: true });
+  }>({ name: '', phone: '', email: '', password: '', role: 'pos_user', isActive: true });
 
   // Table handlers
   const handleOpenTableDialog = (table?: Table) => {
@@ -122,12 +123,13 @@ export default function StaffManagement() {
         name: staffMember.name,
         phone: staffMember.phone,
         email: staffMember.email,
+        password: staffMember.password,
         role: staffMember.role,
         isActive: staffMember.isActive,
       });
     } else {
       setEditingStaff(null);
-      setStaffForm({ name: '', phone: '', email: '', role: 'pos_user', isActive: true });
+      setStaffForm({ name: '', phone: '', email: '', password: '', role: 'pos_user', isActive: true });
     }
     setShowStaffDialog(true);
   };
@@ -135,6 +137,10 @@ export default function StaffManagement() {
   const handleSaveStaff = () => {
     if (!staffForm.name.trim() || !staffForm.email.trim()) {
       toast.error('Please enter name and email');
+      return;
+    }
+    if (!editingStaff && !staffForm.password.trim()) {
+      toast.error('Please enter a password');
       return;
     }
 
@@ -593,6 +599,16 @@ export default function StaffManagement() {
                 value={staffForm.email}
                 onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
                 placeholder="ali@restaurant.pk"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staff-password">Password {editingStaff && '(leave blank to keep current)'}</Label>
+              <Input
+                id="staff-password"
+                type="password"
+                value={staffForm.password}
+                onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                placeholder={editingStaff ? '••••••••' : 'Enter password'}
               />
             </div>
             <div className="space-y-2">
