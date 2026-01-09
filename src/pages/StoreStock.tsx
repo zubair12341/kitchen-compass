@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Package, ArrowRight, Plus, AlertTriangle, Warehouse } from 'lucide-react';
+import { Package, ArrowRight, Plus, AlertTriangle, Warehouse, History } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,35 +8,44 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 export default function StoreStock() {
-  const { ingredients, ingredientCategories, settings, addStoreStock, transferToKitchen, getLowStockAlerts } = useRestaurantStore();
+  const { ingredients, ingredientCategories, settings, addStoreStock, transferToKitchen, getLowStockAlerts, getStockPurchaseHistory } = useRestaurantStore();
   const [showAddStockDialog, setShowAddStockDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [unitCost, setUnitCost] = useState('');
 
   const lowStockAlerts = getLowStockAlerts();
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
   const handleAddStock = () => {
-    if (!selectedIngredient || !quantity) {
-      toast.error('Please select ingredient and enter quantity');
+    if (!selectedIngredient || !quantity || !unitCost) {
+      toast.error('Please fill all fields');
       return;
     }
 
     const qty = parseFloat(quantity);
+    const cost = parseFloat(unitCost);
     if (isNaN(qty) || qty <= 0) {
       toast.error('Please enter a valid quantity');
       return;
     }
+    if (isNaN(cost) || cost <= 0) {
+      toast.error('Please enter a valid unit cost');
+      return;
+    }
 
-    addStoreStock(selectedIngredient, qty, 'Stock received');
+    addStoreStock(selectedIngredient, qty, cost, 'Stock received');
     toast.success('Stock added successfully');
     setShowAddStockDialog(false);
     setSelectedIngredient('');
     setQuantity('');
+    setUnitCost('');
   };
 
   const handleTransfer = () => {
@@ -64,8 +73,16 @@ export default function StoreStock() {
     setQuantity('');
   };
 
+  const handleOpenHistory = (ingredientId: string) => {
+    setSelectedIngredient(ingredientId);
+    setShowHistoryDialog(true);
+  };
+
   const totalStoreValue = ingredients.reduce((sum, ing) => sum + ing.storeStock * ing.costPerUnit, 0);
   const totalKitchenValue = ingredients.reduce((sum, ing) => sum + ing.kitchenStock * ing.costPerUnit, 0);
+
+  const selectedIngredientData = ingredients.find((i) => i.id === selectedIngredient);
+  const purchaseHistory = selectedIngredient ? getStockPurchaseHistory(selectedIngredient) : [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -181,6 +198,7 @@ export default function StoreStock() {
                   <th>Ingredient</th>
                   <th>Category</th>
                   <th>Unit</th>
+                  <th>Avg Cost</th>
                   <th>Store Stock</th>
                   <th>Kitchen Stock</th>
                   <th>Total</th>
@@ -208,6 +226,7 @@ export default function StoreStock() {
                       </td>
                       <td className="text-muted-foreground">{category?.name || '-'}</td>
                       <td>{ing.unit}</td>
+                      <td className="font-medium">{formatPrice(ing.costPerUnit)}</td>
                       <td className="font-medium">{ing.storeStock.toFixed(2)}</td>
                       <td className="text-muted-foreground">{ing.kitchenStock.toFixed(2)}</td>
                       <td className="font-medium">{totalStock.toFixed(2)}</td>
@@ -218,17 +237,27 @@ export default function StoreStock() {
                         </span>
                       </td>
                       <td>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={ing.storeStock <= 0}
-                          onClick={() => {
-                            setSelectedIngredient(ing.id);
-                            setShowTransferDialog(true);
-                          }}
-                        >
-                          Transfer
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenHistory(ing.id)}
+                            title="View purchase history"
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={ing.storeStock <= 0}
+                            onClick={() => {
+                              setSelectedIngredient(ing.id);
+                              setShowTransferDialog(true);
+                            }}
+                          >
+                            Transfer
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -273,6 +302,28 @@ export default function StoreStock() {
                 placeholder="Enter quantity"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="unit-cost">Unit Cost ({settings.currencySymbol})</Label>
+              <Input
+                id="unit-cost"
+                type="number"
+                min="0"
+                step="0.01"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+                placeholder="Enter cost per unit"
+              />
+            </div>
+            {selectedIngredient && (
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                <p className="text-muted-foreground">
+                  Current avg cost: <strong>{formatPrice(ingredients.find(i => i.id === selectedIngredient)?.costPerUnit || 0)}</strong>
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  The weighted average cost will be recalculated after this purchase.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddStockDialog(false)}>Cancel</Button>
@@ -319,6 +370,60 @@ export default function StoreStock() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTransferDialog(false)}>Cancel</Button>
             <Button onClick={handleTransfer}>Transfer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purchase History Dialog */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Purchase History - {selectedIngredientData?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {purchaseHistory.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No purchase history available
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                  <p className="font-medium">Weighted Average Cost</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {formatPrice(selectedIngredientData?.costPerUnit || 0)} / {selectedIngredientData?.unit}
+                  </p>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Qty</th>
+                        <th>Unit Cost</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchaseHistory.map((purchase) => (
+                        <tr key={purchase.id}>
+                          <td className="text-sm">
+                            {format(new Date(purchase.purchaseDate), 'dd MMM yyyy')}
+                          </td>
+                          <td>{purchase.quantity.toFixed(2)}</td>
+                          <td>{formatPrice(purchase.unitCost)}</td>
+                          <td className="font-medium">{formatPrice(purchase.totalCost)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoryDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

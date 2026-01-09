@@ -16,6 +16,8 @@ import {
   Staff,
   RestaurantSettings,
   InvoiceSettings,
+  StockPurchase,
+  DiscountType,
 } from '@/types/restaurant';
 
 interface RestaurantState {
@@ -55,7 +57,9 @@ interface RestaurantState {
   deleteIngredientCategory: (id: string) => void;
 
   // Stock Management
-  addStoreStock: (ingredientId: string, quantity: number, reason?: string) => void;
+  stockPurchases: StockPurchase[];
+  addStoreStock: (ingredientId: string, quantity: number, unitCost: number, reason?: string) => void;
+  getStockPurchaseHistory: (ingredientId: string) => StockPurchase[];
   transferToKitchen: (ingredientId: string, quantity: number) => void;
   transferToStore: (ingredientId: string, quantity: number) => void;
   deductKitchenStock: (ingredientId: string, quantity: number, orderId?: string, orderNumber?: string) => void;
@@ -92,6 +96,8 @@ interface RestaurantState {
     waiterId?: string;
     orderType: 'dine-in' | 'online' | 'takeaway';
     discount?: number;
+    discountType?: DiscountType;
+    discountValue?: number;
   }) => Order | null;
   updateOrder: (orderId: string, orderDetails: {
     paymentMethod: 'cash' | 'card' | 'mobile';
@@ -100,6 +106,8 @@ interface RestaurantState {
     waiterId?: string;
     orderType: 'dine-in' | 'online' | 'takeaway';
     discount?: number;
+    discountType?: DiscountType;
+    discountValue?: number;
   }) => Order | null;
   settleOrder: (orderId: string) => void;
   cancelOrder: (orderId: string) => void;
@@ -160,9 +168,9 @@ const initialWaiters: Waiter[] = [
 
 // Sample Staff
 const initialStaff: Staff[] = [
-  { id: '1', name: 'Muhammad Kashif', phone: '+92 300 1234567', email: 'admin@dhaba.pk', role: 'admin', isActive: true, createdAt: new Date() },
-  { id: '2', name: 'Ali Raza', phone: '+92 301 7654321', email: 'manager@dhaba.pk', role: 'manager', isActive: true, createdAt: new Date() },
-  { id: '3', name: 'Imran Shah', phone: '+92 302 1122334', email: 'pos@dhaba.pk', role: 'pos_user', isActive: true, createdAt: new Date() },
+  { id: '1', name: 'Muhammad Kashif', phone: '+92 300 1234567', email: 'admin@dhaba.pk', password: 'admin123', role: 'admin', isActive: true, createdAt: new Date() },
+  { id: '2', name: 'Ali Raza', phone: '+92 301 7654321', email: 'manager@dhaba.pk', password: 'manager123', role: 'manager', isActive: true, createdAt: new Date() },
+  { id: '3', name: 'Imran Shah', phone: '+92 302 1122334', email: 'pos@dhaba.pk', password: 'pos123', role: 'pos_user', isActive: true, createdAt: new Date() },
 ];
 
 // Sample data - Pakistani Ingredients
@@ -393,6 +401,7 @@ export const useRestaurantStore = create<RestaurantState>()(
       orders: [],
       stockTransfers: [],
       stockDeductions: [],
+      stockPurchases: [],
       currentEditingOrderId: null,
 
       // Settings
@@ -556,11 +565,29 @@ export const useRestaurantStore = create<RestaurantState>()(
       },
 
       // Stock Management
-      addStoreStock: (ingredientId, quantity, reason = 'Stock received') => {
+      addStoreStock: (ingredientId, quantity, unitCost, reason = 'Stock received') => {
+        const ingredient = get().ingredients.find((i) => i.id === ingredientId);
+        if (!ingredient) return;
+
+        // Calculate weighted average cost
+        const currentTotalValue = ingredient.storeStock * ingredient.costPerUnit;
+        const newPurchaseValue = quantity * unitCost;
+        const newTotalStock = ingredient.storeStock + quantity;
+        const newWeightedAvgCost = newTotalStock > 0 
+          ? (currentTotalValue + newPurchaseValue) / newTotalStock 
+          : unitCost;
+
+        const purchaseId = generateId();
+
         set((state) => ({
           ingredients: state.ingredients.map((ing) =>
             ing.id === ingredientId
-              ? { ...ing, storeStock: ing.storeStock + quantity, updatedAt: new Date() }
+              ? { 
+                  ...ing, 
+                  storeStock: ing.storeStock + quantity, 
+                  costPerUnit: newWeightedAvgCost,
+                  updatedAt: new Date() 
+                }
               : ing
           ),
           stockTransfers: [
@@ -575,7 +602,25 @@ export const useRestaurantStore = create<RestaurantState>()(
               createdAt: new Date(),
             },
           ],
+          stockPurchases: [
+            ...state.stockPurchases,
+            {
+              id: purchaseId,
+              ingredientId,
+              quantity,
+              unitCost,
+              totalCost: quantity * unitCost,
+              purchaseDate: new Date(),
+              createdAt: new Date(),
+            },
+          ],
         }));
+      },
+
+      getStockPurchaseHistory: (ingredientId) => {
+        return get().stockPurchases
+          .filter((p) => p.ingredientId === ingredientId)
+          .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
       },
 
       transferToKitchen: (ingredientId, quantity) => {
@@ -824,8 +869,13 @@ export const useRestaurantStore = create<RestaurantState>()(
           (sum, item) => sum + item.menuItem.price * item.quantity,
           0
         );
-        const tax = subtotal * (settings.taxRate / 100);
-        const discount = orderDetails.discount || 0;
+        const gstEnabled = settings.invoice?.gstEnabled ?? true;
+        const tax = gstEnabled ? subtotal * (settings.taxRate / 100) : 0;
+        const discountType = orderDetails.discountType || 'fixed';
+        const discountValue = orderDetails.discountValue || 0;
+        const discount = discountType === 'percentage' 
+          ? (subtotal * discountValue) / 100 
+          : discountValue;
         const total = subtotal + tax - discount;
 
         const table = tables.find((t) => t.id === orderDetails.tableId);
@@ -845,6 +895,8 @@ export const useRestaurantStore = create<RestaurantState>()(
           subtotal,
           tax,
           discount,
+          discountType,
+          discountValue,
           total,
           paymentMethod: orderDetails.paymentMethod,
           status: orderDetails.orderType === 'dine-in' ? 'pending' : 'completed',
@@ -888,39 +940,50 @@ export const useRestaurantStore = create<RestaurantState>()(
           (sum, item) => sum + item.menuItem.price * item.quantity,
           0
         );
-        const tax = subtotal * (settings.taxRate / 100);
-        const discount = orderDetails.discount || 0;
+        const gstEnabled = settings.invoice?.gstEnabled ?? true;
+        const tax = gstEnabled ? subtotal * (settings.taxRate / 100) : 0;
+        const discountType = orderDetails.discountType || 'fixed';
+        const discountValue = orderDetails.discountValue || 0;
+        const discount = discountType === 'percentage' 
+          ? (subtotal * discountValue) / 100 
+          : discountValue;
         const total = subtotal + tax - discount;
 
         const table = tables.find((t) => t.id === orderDetails.tableId);
         const waiter = waiters.find((w) => w.id === orderDetails.waiterId);
 
+        let updatedOrder: Order | null = null;
+
         set((state) => ({
-          orders: state.orders.map((order) =>
-            order.id === orderId
-              ? {
-                  ...order,
-                  items: cart.map((item) => ({
-                    menuItemId: item.menuItem.id,
-                    menuItemName: item.menuItem.name,
-                    quantity: item.quantity,
-                    unitPrice: item.menuItem.price,
-                    total: item.menuItem.price * item.quantity,
-                    notes: item.notes,
-                  })),
-                  subtotal,
-                  tax,
-                  discount,
-                  total,
-                  paymentMethod: orderDetails.paymentMethod,
-                  customerName: orderDetails.customerName,
-                  tableId: orderDetails.tableId,
-                  tableNumber: table?.number,
-                  waiterId: orderDetails.waiterId,
-                  waiterName: waiter?.name,
-                }
-              : order
-          ),
+          orders: state.orders.map((order) => {
+            if (order.id === orderId) {
+              updatedOrder = {
+                ...order,
+                items: cart.map((item) => ({
+                  menuItemId: item.menuItem.id,
+                  menuItemName: item.menuItem.name,
+                  quantity: item.quantity,
+                  unitPrice: item.menuItem.price,
+                  total: item.menuItem.price * item.quantity,
+                  notes: item.notes,
+                })),
+                subtotal,
+                tax,
+                discount,
+                discountType,
+                discountValue,
+                total,
+                paymentMethod: orderDetails.paymentMethod,
+                customerName: orderDetails.customerName,
+                tableId: orderDetails.tableId,
+                tableNumber: table?.number,
+                waiterId: orderDetails.waiterId,
+                waiterName: waiter?.name,
+              };
+              return updatedOrder;
+            }
+            return order;
+          }),
           cart: [],
           currentEditingOrderId: null,
         }));
