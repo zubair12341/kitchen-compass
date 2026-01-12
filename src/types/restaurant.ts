@@ -177,6 +177,10 @@ export interface InvoiceSettings {
   gstEnabled: boolean;
 }
 
+export interface SecuritySettings {
+  cancelOrderPassword: string;
+}
+
 export interface RestaurantSettings {
   name: string;
   address: string;
@@ -185,6 +189,7 @@ export interface RestaurantSettings {
   currency: string;
   currencySymbol: string;
   invoice: InvoiceSettings;
+  security: SecuritySettings;
 }
 
 // Role permissions

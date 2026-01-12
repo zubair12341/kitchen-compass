@@ -1,18 +1,27 @@
 import { useState } from 'react';
-import { Search, Eye, FileText, Calendar, Printer, Users } from 'lucide-react';
+import { Search, Eye, FileText, Calendar, Printer, Users, X, Lock } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { Order } from '@/types/restaurant';
+import { toast } from 'sonner';
 
 export default function Orders() {
-  const { orders, settings } = useRestaurantStore();
+  const { orders, settings, cancelOrder, freeTable, tables } = useRestaurantStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderTypeTab, setOrderTypeTab] = useState<'all' | 'dine-in' | 'takeaway' | 'online'>('all');
+  
+  // Cancel password dialog
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelPassword, setCancelPassword] = useState('');
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
@@ -21,7 +30,8 @@ export default function Orders() {
       (order.customerName?.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (order.waiterName?.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesType = orderTypeTab === 'all' || order.orderType === orderTypeTab;
+    return matchesSearch && matchesStatus && matchesType;
   });
 
   const getStatusColor = (status: Order['status']) => {
@@ -34,11 +44,55 @@ export default function Orders() {
     }
   };
 
-  const handlePrintInvoice = (order: Order) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const getOrderTypeCount = (type: 'dine-in' | 'takeaway' | 'online' | 'all') => {
+    if (type === 'all') return orders.length;
+    return orders.filter(o => o.orderType === type).length;
+  };
 
-    printWindow.document.write(`
+  const handleCancelRequest = (order: Order) => {
+    if (order.status === 'cancelled') {
+      toast.error('Order is already cancelled');
+      return;
+    }
+    setOrderToCancel(order);
+    setCancelPassword('');
+    setShowCancelDialog(true);
+  };
+
+  const handleConfirmCancel = () => {
+    if (!orderToCancel) return;
+    
+    if (cancelPassword !== settings.security?.cancelOrderPassword) {
+      toast.error('Invalid password');
+      return;
+    }
+
+    // Free the table if it's a dine-in order
+    if (orderToCancel.tableId) {
+      const table = tables.find(t => t.id === orderToCancel.tableId);
+      if (table) {
+        freeTable(orderToCancel.tableId);
+      }
+    }
+
+    cancelOrder(orderToCancel.id);
+    toast.success(`Order ${orderToCancel.orderNumber} cancelled`);
+    setShowCancelDialog(false);
+    setOrderToCancel(null);
+    setCancelPassword('');
+    setSelectedOrder(null);
+  };
+
+  const handlePrintInvoice = (order: Order) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(`
       <html>
         <head>
           <title>Invoice - ${order.orderNumber}</title>
@@ -87,7 +141,7 @@ export default function Orders() {
           </div>
           <div class="totals">
             <div class="total-row"><span>Subtotal:</span> <span>${settings.currencySymbol} ${order.subtotal.toLocaleString()}</span></div>
-            <div class="total-row"><span>GST (${settings.taxRate}%):</span> <span>${settings.currencySymbol} ${order.tax.toLocaleString()}</span></div>
+            ${settings.invoice?.gstEnabled ? `<div class="total-row"><span>GST (${settings.taxRate}%):</span> <span>${settings.currencySymbol} ${order.tax.toLocaleString()}</span></div>` : ''}
             ${order.discount > 0 ? `<div class="total-row"><span>Discount:</span> <span>-${settings.currencySymbol} ${order.discount.toLocaleString()}</span></div>` : ''}
             <div class="total-row grand-total"><span>TOTAL:</span> <span>${settings.currencySymbol} ${order.total.toLocaleString()}</span></div>
           </div>
@@ -100,9 +154,14 @@ export default function Orders() {
         </body>
       </html>
     `);
+    doc.close();
 
-    printWindow.document.close();
-    printWindow.print();
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
   };
 
   return (
@@ -111,6 +170,24 @@ export default function Orders() {
         <h1 className="page-title">Order History</h1>
         <p className="page-subtitle">View and manage all orders</p>
       </div>
+
+      {/* Order Type Tabs */}
+      <Tabs value={orderTypeTab} onValueChange={(v) => setOrderTypeTab(v as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 max-w-lg">
+          <TabsTrigger value="all" className="gap-2">
+            All <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{getOrderTypeCount('all')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="dine-in" className="gap-2">
+            Dine-In <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{getOrderTypeCount('dine-in')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="takeaway" className="gap-2">
+            Takeaway <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{getOrderTypeCount('takeaway')}</span>
+          </TabsTrigger>
+          <TabsTrigger value="online" className="gap-2">
+            Online <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{getOrderTypeCount('online')}</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filters */}
       <div className="flex flex-col gap-4 sm:flex-row">
@@ -181,7 +258,13 @@ export default function Orders() {
                   )}
                 </td>
                 <td>
-                  <span className="capitalize">{order.orderType}</span>
+                  <span className={`capitalize px-2 py-1 rounded-full text-xs font-medium ${
+                    order.orderType === 'dine-in' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                    order.orderType === 'takeaway' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                  }`}>
+                    {order.orderType}
+                  </span>
                 </td>
                 <td>{order.items.length} items</td>
                 <td className="font-semibold">{formatPrice(order.total)}</td>
@@ -197,6 +280,16 @@ export default function Orders() {
                     <Button variant="ghost" size="icon" onClick={() => handlePrintInvoice(order)}>
                       <Printer className="h-4 w-4" />
                     </Button>
+                    {order.status !== 'cancelled' && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleCancelRequest(order)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -277,10 +370,12 @@ export default function Orders() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span>{formatPrice(selectedOrder.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
-                  <span>{formatPrice(selectedOrder.tax)}</span>
-                </div>
+                {settings.invoice?.gstEnabled && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
+                    <span>{formatPrice(selectedOrder.tax)}</span>
+                  </div>
+                )}
                 {selectedOrder.discount > 0 && (
                   <div className="flex justify-between text-sm text-success">
                     <span>Discount</span>
@@ -297,12 +392,57 @@ export default function Orders() {
                 </div>
               </div>
 
-              <Button className="w-full" onClick={() => handlePrintInvoice(selectedOrder)}>
-                <Printer className="h-4 w-4 mr-2" />
-                Print Invoice
-              </Button>
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => handlePrintInvoice(selectedOrder)}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Invoice
+                </Button>
+                {selectedOrder.status !== 'cancelled' && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => handleCancelRequest(selectedOrder)}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Password Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Cancel Order
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Enter the 5-digit password to cancel order <strong>{orderToCancel?.orderNumber}</strong>
+            </p>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input
+                type="password"
+                maxLength={5}
+                placeholder="Enter 5-digit password"
+                value={cancelPassword}
+                onChange={(e) => setCancelPassword(e.target.value)}
+                className="text-center text-lg tracking-widest"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmCancel}>
+              Confirm Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
