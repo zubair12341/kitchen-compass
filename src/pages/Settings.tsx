@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Building, Bell, Plus, Trash2, FileText, Receipt } from 'lucide-react';
+import { Save, Building, Bell, Plus, Trash2, FileText, Receipt, Lock, Eye, EyeOff } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { SecuritySettings } from '@/types/restaurant';
 
 export default function RestaurantSettings() {
   const {
@@ -36,6 +37,10 @@ export default function RestaurantSettings() {
   const [showLogo, setShowLogo] = useState(settings.invoice?.showLogo ?? true);
   const [showTaxBreakdown, setShowTaxBreakdown] = useState(settings.invoice?.showTaxBreakdown ?? true);
   const [gstEnabled, setGstEnabled] = useState(settings.invoice?.gstEnabled ?? true);
+
+  // Security Settings
+  const [cancelPassword, setCancelPassword] = useState(settings.security?.cancelOrderPassword || '12345');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Notifications
   const [lowStockAlert, setLowStockAlert] = useState(true);
@@ -64,6 +69,19 @@ export default function RestaurantSettings() {
       gstEnabled,
     });
     toast.success('Invoice settings saved');
+  };
+
+  const handleSaveSecuritySettings = () => {
+    if (cancelPassword.length !== 5 || !/^\d+$/.test(cancelPassword)) {
+      toast.error('Password must be exactly 5 digits');
+      return;
+    }
+    updateSettings({
+      security: {
+        cancelOrderPassword: cancelPassword,
+      },
+    });
+    toast.success('Security settings saved');
   };
 
   const handleAddMenuCategory = () => {
@@ -100,9 +118,10 @@ export default function RestaurantSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="invoice">Invoice</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
@@ -270,6 +289,58 @@ export default function RestaurantSettings() {
               <Button onClick={handleSaveInvoiceSettings} className="gap-2">
                 <Save className="h-4 w-4" />
                 Save Invoice Settings
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security Settings Tab */}
+        <TabsContent value="security">
+          <Card className="section-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Security Settings
+              </CardTitle>
+              <CardDescription>Manage security and access controls</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="cancel-password">Order Cancellation Password (5 digits)</Label>
+                <div className="relative">
+                  <Input
+                    id="cancel-password"
+                    type={showPassword ? 'text' : 'password'}
+                    maxLength={5}
+                    value={cancelPassword}
+                    onChange={(e) => setCancelPassword(e.target.value.replace(/\D/g, ''))}
+                    placeholder="12345"
+                    className="pr-10 text-lg tracking-widest"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This password is required to cancel any order from the Orders section. Only share with authorized staff.
+                </p>
+              </div>
+              <div className="rounded-lg bg-warning/10 border border-warning/20 p-4">
+                <p className="text-sm text-warning font-medium">⚠️ Important</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Any user with access to the POS or Orders section can cancel orders using this password. Keep it secure and change it regularly.
+                </p>
+              </div>
+              <Separator />
+              <Button onClick={handleSaveSecuritySettings} className="gap-2">
+                <Save className="h-4 w-4" />
+                Save Security Settings
               </Button>
             </CardContent>
           </Card>

@@ -221,16 +221,16 @@ export default function Dashboard() {
                 <span>New Order</span>
               </Button>
             </Link>
-            <Link to="/menu">
+            <Link to="/food-items">
               <Button className="w-full h-auto py-6 flex-col gap-2" variant="outline">
                 <UtensilsCrossed className="h-6 w-6" />
-                <span>Add Menu Item</span>
+                <span>Food Items</span>
               </Button>
             </Link>
-            <Link to="/stock">
+            <Link to="/store-stock">
               <Button className="w-full h-auto py-6 flex-col gap-2" variant="outline">
                 <Package className="h-6 w-6" />
-                <span>Manage Stock</span>
+                <span>Store Stock</span>
               </Button>
             </Link>
             <Link to="/reports">
