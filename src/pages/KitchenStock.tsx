@@ -20,8 +20,9 @@ export default function KitchenStock() {
   const lowStockAlerts = getLowStockAlerts();
   const kitchenIngredients = ingredients.filter((ing) => ing.kitchenStock > 0);
 
-  // Get recent stock deductions sorted by date
+  // Get recent stock deductions sorted by date (exclude cancelled deductions)
   const recentDeductions = [...stockDeductions]
+    .filter((d) => !d.cancelled)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 50);
 
