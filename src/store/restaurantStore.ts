@@ -63,6 +63,7 @@ interface RestaurantState {
   transferToKitchen: (ingredientId: string, quantity: number) => void;
   transferToStore: (ingredientId: string, quantity: number) => void;
   deductKitchenStock: (ingredientId: string, quantity: number, orderId?: string, orderNumber?: string) => void;
+  restoreKitchenStock: (orderId: string) => void;
   stockTransfers: StockTransfer[];
   stockDeductions: StockDeduction[];
   getStockDeductionsByOrder: (orderId: string) => StockDeduction[];
@@ -856,6 +857,38 @@ export const useRestaurantStore = create<RestaurantState>()(
         return get().stockDeductions.filter((d) => d.orderId === orderId);
       },
 
+      restoreKitchenStock: (orderId) => {
+        const deductions = get().stockDeductions.filter((d) => d.orderId === orderId && !d.cancelled);
+        
+        if (deductions.length === 0) return;
+
+        // Restore stock for each deduction
+        const ingredientUpdates: Record<string, number> = {};
+        deductions.forEach((deduction) => {
+          ingredientUpdates[deduction.ingredientId] = 
+            (ingredientUpdates[deduction.ingredientId] || 0) + deduction.quantity;
+        });
+
+        set((state) => ({
+          ingredients: state.ingredients.map((ing) => {
+            const restoreAmount = ingredientUpdates[ing.id];
+            if (restoreAmount) {
+              return {
+                ...ing,
+                kitchenStock: ing.kitchenStock + restoreAmount,
+                updatedAt: new Date(),
+              };
+            }
+            return ing;
+          }),
+          stockDeductions: state.stockDeductions.map((d) =>
+            d.orderId === orderId
+              ? { ...d, cancelled: true, cancelledAt: new Date() }
+              : d
+          ),
+        }));
+      },
+
       // Menu Management
       addMenuItem: (item) => {
         const recipeCost = get().calculateRecipeCost(item.recipe);
@@ -1157,6 +1190,9 @@ export const useRestaurantStore = create<RestaurantState>()(
         if (order?.tableId) {
           get().freeTable(order.tableId);
         }
+
+        // Restore kitchen stock and mark deductions as cancelled
+        get().restoreKitchenStock(orderId);
 
         set((state) => ({
           orders: state.orders.map((o) =>

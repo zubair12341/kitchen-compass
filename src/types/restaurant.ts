@@ -137,6 +137,8 @@ export interface StockDeduction {
   ingredientName: string;
   quantity: number;
   createdAt: Date;
+  cancelled?: boolean;
+  cancelledAt?: Date;
 }
 
 export interface StockAdjustment {
