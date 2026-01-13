@@ -1052,11 +1052,13 @@ export const useRestaurantStore = create<RestaurantState>()(
           completedAt: orderDetails.orderType !== 'dine-in' ? new Date() : undefined,
         };
 
-        // Deduct ingredients from kitchen stock
+        // Deduct ingredients from kitchen stock with order tracking
+        const orderNumber = order.orderNumber;
+        const orderId = order.id;
         cart.forEach((cartItem) => {
           cartItem.menuItem.recipe.forEach((recipeItem) => {
             const quantityUsed = recipeItem.quantity * cartItem.quantity;
-            get().deductKitchenStock(recipeItem.ingredientId, quantityUsed);
+            get().deductKitchenStock(recipeItem.ingredientId, quantityUsed, orderId, orderNumber);
           });
         });
 
