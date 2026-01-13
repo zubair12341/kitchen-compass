@@ -71,6 +71,8 @@ export default function POS() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [showKitchenInvoice, setShowKitchenInvoice] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelPassword, setCancelPassword] = useState('');
+  const [cancelPasswordError, setCancelPasswordError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
   const [customerName, setCustomerName] = useState('');
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
@@ -141,15 +143,35 @@ export default function POS() {
   };
 
   const handleCancelOrder = () => {
+    const correctPassword = settings.security?.cancelOrderPassword || '12345';
+    
+    if (cancelPassword !== correctPassword) {
+      setCancelPasswordError('Incorrect password');
+      return;
+    }
+    
     if (currentEditingOrderId) {
+      // Cancel existing order
       cancelOrder(currentEditingOrderId);
       if (selectedTableId) {
         freeTable(selectedTableId);
       }
       toast.success('Order cancelled');
-      setShowCancelConfirm(false);
-      handleBackToOrderType();
+    } else {
+      // Just clear the cart for new orders
+      toast.success('Order cancelled');
     }
+    
+    setShowCancelConfirm(false);
+    setCancelPassword('');
+    setCancelPasswordError('');
+    handleBackToOrderType();
+  };
+  
+  const handleOpenCancelDialog = () => {
+    setCancelPassword('');
+    setCancelPasswordError('');
+    setShowCancelConfirm(true);
   };
 
   const handleCompleteOrder = () => {
@@ -632,15 +654,16 @@ export default function POS() {
               {isEditingExistingOrder ? 'Edit Order' : 'Current Order'}
             </h2>
             <div className="flex gap-2">
-              {isEditingExistingOrder && (
+              {/* Cancel order button - available for both new and existing orders */}
+              {cart.length > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowCancelConfirm(true)}
+                  onClick={handleOpenCancelDialog}
                   className="text-destructive hover:text-destructive"
                 >
                   <XCircle className="h-4 w-4 mr-1" />
-                  Cancel
+                  Cancel Order
                 </Button>
               )}
               {cart.length > 0 && (
@@ -901,16 +924,43 @@ export default function POS() {
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Order Confirmation Dialog */}
-      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+      {/* Cancel Order Confirmation Dialog with Password */}
+      <Dialog open={showCancelConfirm} onOpenChange={(open) => {
+        setShowCancelConfirm(open);
+        if (!open) {
+          setCancelPassword('');
+          setCancelPasswordError('');
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cancel Order?</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
+          <div className="space-y-4 py-4">
             <p className="text-muted-foreground">
-              Are you sure you want to cancel this order? This action cannot be undone and will free the table.
+              {isEditingExistingOrder 
+                ? 'This will cancel the existing order and free the table.' 
+                : 'This will cancel the current order and return to order type selection.'
+              }
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-password">Enter 5-digit password to confirm</Label>
+              <Input
+                id="cancel-password"
+                type="password"
+                maxLength={5}
+                value={cancelPassword}
+                onChange={(e) => {
+                  setCancelPassword(e.target.value);
+                  setCancelPasswordError('');
+                }}
+                placeholder="Enter password"
+                className={cancelPasswordError ? 'border-destructive' : ''}
+              />
+              {cancelPasswordError && (
+                <p className="text-sm text-destructive">{cancelPasswordError}</p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
