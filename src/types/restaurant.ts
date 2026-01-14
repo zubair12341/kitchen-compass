@@ -177,10 +177,16 @@ export interface InvoiceSettings {
   showLogo: boolean;
   showTaxBreakdown: boolean;
   gstEnabled: boolean;
+  logoUrl?: string;
 }
 
 export interface SecuritySettings {
   cancelOrderPassword: string;
+}
+
+export interface BusinessDaySettings {
+  cutoffHour: number; // 0-23, e.g., 5 means 5:00 AM
+  cutoffMinute: number; // 0-59
 }
 
 export interface RestaurantSettings {
@@ -192,6 +198,7 @@ export interface RestaurantSettings {
   currencySymbol: string;
   invoice: InvoiceSettings;
   security: SecuritySettings;
+  businessDay: BusinessDaySettings;
 }
 
 // Role permissions
