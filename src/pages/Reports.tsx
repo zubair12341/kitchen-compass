@@ -1,26 +1,30 @@
 import { useMemo } from 'react';
-import { TrendingUp, DollarSign, ShoppingCart, Package, Calendar } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingCart, Package, Calendar, Download } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
+import { getLastNBusinessDays, isWithinBusinessDay } from '@/lib/businessDay';
+import { exportToCSV } from '@/lib/csvExport';
 
 const COLORS = ['#f97316', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#8b5cf6'];
 
 export default function Reports() {
-  const { orders, menuItems, ingredients, menuCategories } = useRestaurantStore();
+  const { orders, menuItems, ingredients, menuCategories, settings } = useRestaurantStore();
 
-  // Calculate last 7 days sales
+  // Get business day settings
+  const cutoffHour = settings.businessDay?.cutoffHour ?? 5;
+  const cutoffMinute = settings.businessDay?.cutoffMinute ?? 0;
+
+  // Calculate last 7 business days sales
   const dailySales = useMemo(() => {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = subDays(new Date(), i);
-      const dayStart = startOfDay(date);
-      const dayEnd = endOfDay(date);
-      
+    const businessDays = getLastNBusinessDays(7, cutoffHour, cutoffMinute);
+    
+    return businessDays.map(({ businessDate, start, end }) => {
       const dayOrders = orders.filter((order) => {
         const orderDate = new Date(order.createdAt);
-        return orderDate >= dayStart && orderDate <= dayEnd && order.status === 'completed';
+        return isWithinBusinessDay(orderDate, start, end) && order.status === 'completed';
       });
 
       const revenue = dayOrders.reduce((sum, order) => sum + order.total, 0);
@@ -31,15 +35,14 @@ export default function Reports() {
         }, 0);
       }, 0);
 
-      days.push({
-        date: format(date, 'MMM dd'),
+      return {
+        date: format(businessDate, 'MMM dd'),
         revenue,
         profit: revenue - cost,
         orders: dayOrders.length,
-      });
-    }
-    return days;
-  }, [orders, menuItems]);
+      };
+    });
+  }, [orders, menuItems, cutoffHour, cutoffMinute]);
 
   // Category sales distribution
   const categorySales = useMemo(() => {
@@ -89,11 +92,39 @@ export default function Reports() {
   }, 0);
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
+  const handleExportDailySales = () => {
+    exportToCSV(dailySales, [
+      { key: 'date', header: 'Date' },
+      { key: 'revenue', header: 'Revenue', formatter: (v) => v.toFixed(2) },
+      { key: 'profit', header: 'Profit', formatter: (v) => v.toFixed(2) },
+      { key: 'orders', header: 'Orders' },
+    ], `daily-sales-${format(new Date(), 'yyyy-MM-dd')}`);
+  };
+
+  const handleExportCategorySales = () => {
+    exportToCSV(categorySales, [
+      { key: 'name', header: 'Category' },
+      { key: 'value', header: 'Sales', formatter: (v) => v.toFixed(2) },
+    ], `category-sales-${format(new Date(), 'yyyy-MM-dd')}`);
+  };
+
+  const handleExportTopItems = () => {
+    exportToCSV(topItems, [
+      { key: 'name', header: 'Item' },
+      { key: 'quantity', header: 'Quantity Sold' },
+      { key: 'revenue', header: 'Revenue', formatter: (v) => v.toFixed(2) },
+    ], `top-items-${format(new Date(), 'yyyy-MM-dd')}`);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="page-header">
-        <h1 className="page-title">Reports & Analytics</h1>
-        <p className="page-subtitle">Track your restaurant performance</p>
+      <div className="page-header flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Reports & Analytics</h1>
+          <p className="page-subtitle">
+            Track your restaurant performance (Business day cutoff: {cutoffHour.toString().padStart(2, '0')}:{cutoffMinute.toString().padStart(2, '0')})
+          </p>
+        </div>
       </div>
 
       {/* Summary Stats */}
@@ -105,7 +136,7 @@ export default function Reports() {
             </div>
             <div>
               <p className="text-sm opacity-90">Total Revenue</p>
-              <p className="text-2xl font-bold">${totalRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold">{settings.currencySymbol} {totalRevenue.toLocaleString()}</p>
             </div>
           </div>
         </Card>
@@ -116,7 +147,7 @@ export default function Reports() {
             </div>
             <div>
               <p className="text-sm opacity-90">Total Profit</p>
-              <p className="text-2xl font-bold">${(totalRevenue - totalCost).toFixed(2)}</p>
+              <p className="text-2xl font-bold">{settings.currencySymbol} {(totalRevenue - totalCost).toLocaleString()}</p>
             </div>
           </div>
         </Card>
@@ -138,7 +169,7 @@ export default function Reports() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Avg Order Value</p>
-              <p className="text-2xl font-bold text-foreground">${avgOrderValue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-foreground">{settings.currencySymbol} {avgOrderValue.toFixed(0)}</p>
             </div>
           </div>
         </Card>
@@ -148,8 +179,12 @@ export default function Reports() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Revenue Chart */}
         <Card className="section-card">
-          <CardHeader>
-            <CardTitle className="section-card-title">Revenue (Last 7 Days)</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="section-card-title">Revenue (Last 7 Business Days)</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleExportDailySales} className="gap-1">
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="h-80">
@@ -175,8 +210,12 @@ export default function Reports() {
 
         {/* Category Distribution */}
         <Card className="section-card">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="section-card-title">Sales by Category</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleExportCategorySales} className="gap-1">
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="h-80">
@@ -198,7 +237,7 @@ export default function Reports() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => `$${value.toFixed(2)}`}
+                      formatter={(value: number) => `${settings.currencySymbol} ${value.toFixed(2)}`}
                       contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
@@ -251,8 +290,12 @@ export default function Reports() {
 
         {/* Top Selling Items */}
         <Card className="section-card">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="section-card-title">Top Selling Items</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleExportTopItems} className="gap-1">
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
           </CardHeader>
           <CardContent>
             {topItems.length > 0 ? (
@@ -266,7 +309,7 @@ export default function Reports() {
                       <p className="font-medium">{item.name}</p>
                       <p className="text-sm text-muted-foreground">{item.quantity} sold</p>
                     </div>
-                    <p className="font-semibold">${item.revenue.toFixed(2)}</p>
+                    <p className="font-semibold">{settings.currencySymbol} {item.revenue.toLocaleString()}</p>
                   </div>
                 ))}
               </div>
@@ -296,7 +339,7 @@ export default function Reports() {
             <div className="rounded-lg bg-muted/50 p-4 text-center">
               <p className="text-sm text-muted-foreground">Total Inventory Value</p>
               <p className="text-3xl font-bold">
-                ${ingredients.reduce((sum, ing) => sum + (ing.storeStock + ing.kitchenStock) * ing.costPerUnit, 0).toFixed(2)}
+                {settings.currencySymbol} {ingredients.reduce((sum, ing) => sum + (ing.storeStock + ing.kitchenStock) * ing.costPerUnit, 0).toLocaleString()}
               </p>
             </div>
             <div className="rounded-lg bg-muted/50 p-4 text-center">

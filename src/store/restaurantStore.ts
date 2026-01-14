@@ -137,9 +137,14 @@ const defaultSettings: RestaurantSettings = {
     showLogo: true,
     showTaxBreakdown: true,
     gstEnabled: true,
+    logoUrl: '',
   },
   security: {
     cancelOrderPassword: '12345',
+  },
+  businessDay: {
+    cutoffHour: 5,
+    cutoffMinute: 0,
   },
 };
 

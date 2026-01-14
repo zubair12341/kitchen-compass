@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Save, Building, Bell, Plus, Trash2, FileText, Receipt, Lock, Eye, EyeOff } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Save, Building, Bell, Plus, Trash2, FileText, Receipt, Lock, Eye, EyeOff, Clock, Upload, Image } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { SecuritySettings } from '@/types/restaurant';
+import { PasswordOTPInput } from '@/components/PasswordOTPInput';
 
 export default function RestaurantSettings() {
   const {
@@ -25,11 +27,17 @@ export default function RestaurantSettings() {
     deleteIngredientCategory,
   } = useRestaurantStore();
   
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  
   // General Settings
   const [restaurantName, setRestaurantName] = useState(settings.name);
   const [address, setAddress] = useState(settings.address);
   const [phone, setPhone] = useState(settings.phone);
   const [taxRate, setTaxRate] = useState(settings.taxRate.toString());
+  
+  // Business Day Settings
+  const [cutoffHour, setCutoffHour] = useState(settings.businessDay?.cutoffHour?.toString() || '5');
+  const [cutoffMinute, setCutoffMinute] = useState(settings.businessDay?.cutoffMinute?.toString() || '0');
   
   // Invoice Settings
   const [invoiceTitle, setInvoiceTitle] = useState(settings.invoice?.title || settings.name);
@@ -37,6 +45,7 @@ export default function RestaurantSettings() {
   const [showLogo, setShowLogo] = useState(settings.invoice?.showLogo ?? true);
   const [showTaxBreakdown, setShowTaxBreakdown] = useState(settings.invoice?.showTaxBreakdown ?? true);
   const [gstEnabled, setGstEnabled] = useState(settings.invoice?.gstEnabled ?? true);
+  const [logoUrl, setLogoUrl] = useState(settings.invoice?.logoUrl || '');
 
   // Security Settings
   const [cancelPassword, setCancelPassword] = useState(settings.security?.cancelOrderPassword || '12345');
@@ -56,8 +65,28 @@ export default function RestaurantSettings() {
       address,
       phone,
       taxRate: parseFloat(taxRate) || 16,
+      businessDay: {
+        cutoffHour: parseInt(cutoffHour) || 5,
+        cutoffMinute: parseInt(cutoffMinute) || 0,
+      },
     });
     toast.success('General settings saved');
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 500 * 1024) {
+        toast.error('Logo file must be less than 500KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setLogoUrl(base64);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveInvoiceSettings = () => {
@@ -67,6 +96,7 @@ export default function RestaurantSettings() {
       showLogo,
       showTaxBreakdown,
       gstEnabled,
+      logoUrl,
     });
     toast.success('Invoice settings saved');
   };
@@ -179,6 +209,54 @@ export default function RestaurantSettings() {
                   />
                 </div>
               </div>
+              
+              {/* Business Day Cutoff */}
+              <Separator />
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Business Day Cutoff Time</p>
+                    <p className="text-sm text-muted-foreground">Orders after midnight but before this time are counted as previous day's sales</p>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 max-w-sm">
+                  <div className="space-y-2">
+                    <Label htmlFor="cutoff-hour">Hour (0-23)</Label>
+                    <Select value={cutoffHour} onValueChange={setCutoffHour}>
+                      <SelectTrigger id="cutoff-hour">
+                        <SelectValue placeholder="Hour" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, i) => (
+                          <SelectItem key={i} value={i.toString()}>
+                            {i.toString().padStart(2, '0')}:00 {i === 0 ? '(Midnight)' : 'AM'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cutoff-minute">Minute</Label>
+                    <Select value={cutoffMinute} onValueChange={setCutoffMinute}>
+                      <SelectTrigger id="cutoff-minute">
+                        <SelectValue placeholder="Minute" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">00</SelectItem>
+                        <SelectItem value="15">15</SelectItem>
+                        <SelectItem value="30">30</SelectItem>
+                        <SelectItem value="45">45</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                  <p>📅 Business day starts at <strong>{cutoffHour.padStart(2, '0')}:{cutoffMinute.padStart(2, '0')}</strong> and ends at the same time next day.</p>
+                  <p className="mt-1">Example: With 5:00 AM cutoff, an order at 2:00 AM on Jan 15 will be counted as Jan 14's sales.</p>
+                </div>
+              </div>
+
               <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
                 <p><strong>Currency:</strong> PKR (Pakistani Rupee)</p>
                 <p><strong>Symbol:</strong> Rs.</p>
@@ -225,6 +303,44 @@ export default function RestaurantSettings() {
                 <p className="text-xs text-muted-foreground">This will appear at the bottom of the invoice</p>
               </div>
               <Separator />
+              
+              {/* Logo Upload */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Image className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Restaurant Logo</p>
+                    <p className="text-sm text-muted-foreground">Upload a logo to display on invoices (max 500KB)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {logoUrl && (
+                    <div className="w-20 h-20 rounded-lg border overflow-hidden bg-white flex items-center justify-center">
+                      <img src={logoUrl} alt="Logo preview" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="file"
+                      ref={logoInputRef}
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                    <Button variant="outline" onClick={() => logoInputRef.current?.click()} className="gap-2">
+                      <Upload className="h-4 w-4" />
+                      {logoUrl ? 'Change Logo' : 'Upload Logo'}
+                    </Button>
+                    {logoUrl && (
+                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setLogoUrl('')}>
+                        Remove Logo
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -254,8 +370,14 @@ export default function RestaurantSettings() {
               <div className="space-y-2">
                 <Label>Invoice Preview</Label>
                 <div className="rounded-lg border bg-white p-4 text-center max-w-sm mx-auto">
+                  {showLogo && logoUrl && (
+                    <div className="mb-3 flex justify-center">
+                      <img src={logoUrl} alt="Logo" className="max-h-16 object-contain" />
+                    </div>
+                  )}
                   <h3 className="text-lg font-bold">{invoiceTitle || 'Restaurant Name'}</h3>
-                  <p className="text-xs text-muted-foreground mb-4">{address}</p>
+                  <p className="text-xs text-muted-foreground">{address}</p>
+                  <p className="text-xs text-muted-foreground mb-2">Order: ORD-SAMPLE</p>
                   <div className="border-t border-b py-2 my-2 text-left text-sm">
                     <div className="flex justify-between">
                       <span>Item 1</span>
@@ -305,29 +427,14 @@ export default function RestaurantSettings() {
               <CardDescription>Manage security and access controls</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="cancel-password">Order Cancellation Password (5 digits)</Label>
-                <div className="relative">
-                  <Input
-                    id="cancel-password"
-                    type={showPassword ? 'text' : 'password'}
-                    maxLength={5}
-                    value={cancelPassword}
-                    onChange={(e) => setCancelPassword(e.target.value.replace(/\D/g, ''))}
-                    placeholder="12345"
-                    className="pr-10 text-lg tracking-widest"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
+              <div className="space-y-4">
+                <Label>Order Cancellation Password (5 digits)</Label>
+                <PasswordOTPInput
+                  value={cancelPassword}
+                  onChange={(value) => setCancelPassword(value.replace(/\D/g, ''))}
+                  length={5}
+                />
+                <p className="text-xs text-muted-foreground text-center">
                   This password is required to cancel any order from the Orders section. Only share with authorized staff.
                 </p>
               </div>

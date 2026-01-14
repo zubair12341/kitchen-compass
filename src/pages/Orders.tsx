@@ -1,15 +1,18 @@
-import { useState } from 'react';
-import { Search, Eye, FileText, Calendar, Printer, Users, X, Lock } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Search, Eye, FileText, Calendar, Printer, Users, X, Lock, Download } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { Order } from '@/types/restaurant';
 import { toast } from 'sonner';
+import { DataTablePagination } from '@/components/DataTablePagination';
+import { PasswordOTPInput } from '@/components/PasswordOTPInput';
+import { exportToCSV } from '@/lib/csvExport';
 
 export default function Orders() {
   const { orders, settings, cancelOrder, freeTable, tables } = useRestaurantStore();
@@ -18,21 +21,40 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderTypeTab, setOrderTypeTab] = useState<'all' | 'dine-in' | 'takeaway' | 'online'>('all');
   
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  
   // Cancel password dialog
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelPassword, setCancelPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch = order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (order.customerName?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (order.waiterName?.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesType = orderTypeTab === 'all' || order.orderType === orderTypeTab;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const matchesSearch = order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.customerName?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (order.waiterName?.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      const matchesType = orderTypeTab === 'all' || order.orderType === orderTypeTab;
+      return matchesSearch && matchesStatus && matchesType;
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [orders, searchQuery, statusFilter, orderTypeTab]);
+
+  // Paginated orders
+  const totalPages = Math.ceil(filteredOrders.length / pageSize);
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = () => {
+    setCurrentPage(1);
+  };
 
   const getStatusColor = (status: Order['status']) => {
     switch (status) {
@@ -56,6 +78,7 @@ export default function Orders() {
     }
     setOrderToCancel(order);
     setCancelPassword('');
+    setPasswordError(false);
     setShowCancelDialog(true);
   };
 
@@ -63,11 +86,11 @@ export default function Orders() {
     if (!orderToCancel) return;
     
     if (cancelPassword !== settings.security?.cancelOrderPassword) {
+      setPasswordError(true);
       toast.error('Invalid password');
       return;
     }
 
-    // Free the table if it's a dine-in order
     if (orderToCancel.tableId) {
       const table = tables.find(t => t.id === orderToCancel.tableId);
       if (table) {
@@ -83,6 +106,24 @@ export default function Orders() {
     setSelectedOrder(null);
   };
 
+  const handleExportCSV = () => {
+    exportToCSV(filteredOrders, [
+      { key: 'orderNumber', header: 'Order #' },
+      { key: 'createdAt', header: 'Date', formatter: (v) => format(new Date(v), 'yyyy-MM-dd HH:mm') },
+      { key: 'customerName', header: 'Customer', formatter: (v) => v || 'Walk-in' },
+      { key: 'waiterName', header: 'Waiter', formatter: (v) => v || '-' },
+      { key: 'orderType', header: 'Type' },
+      { key: 'items', header: 'Items', formatter: (v) => v.length.toString() },
+      { key: 'subtotal', header: 'Subtotal' },
+      { key: 'tax', header: 'Tax' },
+      { key: 'discount', header: 'Discount' },
+      { key: 'total', header: 'Total' },
+      { key: 'paymentMethod', header: 'Payment' },
+      { key: 'status', header: 'Status' },
+    ], `orders-${format(new Date(), 'yyyy-MM-dd')}`);
+    toast.success('Orders exported to CSV');
+  };
+
   const handlePrintInvoice = (order: Order) => {
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
@@ -90,6 +131,10 @@ export default function Orders() {
     
     const doc = iframe.contentWindow?.document;
     if (!doc) return;
+
+    const logoHtml = settings.invoice?.showLogo && settings.invoice?.logoUrl 
+      ? `<div style="text-align: center; margin-bottom: 10px;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
+      : '';
 
     doc.open();
     doc.write(`
@@ -114,7 +159,8 @@ export default function Orders() {
         </head>
         <body>
           <div class="header">
-            <h1>${settings.name}</h1>
+            ${logoHtml}
+            <h1>${settings.invoice?.title || settings.name}</h1>
             <p>${settings.address}</p>
             <p>Tel: ${settings.phone}</p>
             <p>================================</p>
@@ -128,16 +174,12 @@ export default function Orders() {
             ${order.customerName ? `<div class="info-row"><span>Customer:</span> <span>${order.customerName}</span></div>` : ''}
           </div>
           <div class="items">
-            ${order.items
-              .map(
-                (item) => `
+            ${order.items.map((item) => `
               <div class="item">
                 <span>${item.quantity}x ${item.menuItemName}</span>
                 <span>${settings.currencySymbol} ${item.total.toLocaleString()}</span>
               </div>
-            `
-              )
-              .join('')}
+            `).join('')}
           </div>
           <div class="totals">
             <div class="total-row"><span>Subtotal:</span> <span>${settings.currencySymbol} ${order.subtotal.toLocaleString()}</span></div>
@@ -148,8 +190,7 @@ export default function Orders() {
           <div class="footer">
             <p>Payment: ${order.paymentMethod.toUpperCase()}</p>
             <p>================================</p>
-            <p>Thank you for dining with us!</p>
-            <p>شکریہ - Shukriya!</p>
+            <p>${settings.invoice?.footer || 'Thank you for dining with us!'}</p>
           </div>
         </body>
       </html>
@@ -166,13 +207,19 @@ export default function Orders() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="page-header">
-        <h1 className="page-title">Order History</h1>
-        <p className="page-subtitle">View and manage all orders</p>
+      <div className="page-header flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Order History</h1>
+          <p className="page-subtitle">View and manage all orders</p>
+        </div>
+        <Button variant="outline" onClick={handleExportCSV} className="gap-2">
+          <Download className="h-4 w-4" />
+          Export CSV
+        </Button>
       </div>
 
       {/* Order Type Tabs */}
-      <Tabs value={orderTypeTab} onValueChange={(v) => setOrderTypeTab(v as any)} className="w-full">
+      <Tabs value={orderTypeTab} onValueChange={(v) => { setOrderTypeTab(v as any); handleFilterChange(); }} className="w-full">
         <TabsList className="grid w-full grid-cols-4 max-w-lg">
           <TabsTrigger value="all" className="gap-2">
             All <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{getOrderTypeCount('all')}</span>
@@ -196,11 +243,11 @@ export default function Orders() {
           <Input
             placeholder="Search by order number, customer, or waiter..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); handleFilterChange(); }}
             className="pl-10"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); handleFilterChange(); }}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
@@ -232,7 +279,7 @@ export default function Orders() {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.map((order) => (
+            {paginatedOrders.map((order) => (
               <tr key={order.id}>
                 <td className="font-medium font-mono">{order.orderNumber}</td>
                 <td>
@@ -303,6 +350,18 @@ export default function Orders() {
             <p className="text-sm text-muted-foreground">Orders will appear here once created from POS</p>
           </div>
         )}
+        
+        {/* Pagination */}
+        {filteredOrders.length > 0 && (
+          <DataTablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredOrders.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          />
+        )}
       </div>
 
       {/* Order Details Dialog */}
@@ -330,24 +389,6 @@ export default function Orders() {
                   <p className="text-muted-foreground">Order Type</p>
                   <p className="font-medium capitalize">{selectedOrder.orderType}</p>
                 </div>
-                {selectedOrder.customerName && (
-                  <div>
-                    <p className="text-muted-foreground">Customer</p>
-                    <p className="font-medium">{selectedOrder.customerName}</p>
-                  </div>
-                )}
-                {selectedOrder.tableNumber && (
-                  <div>
-                    <p className="text-muted-foreground">Table</p>
-                    <p className="font-medium">{selectedOrder.tableNumber}</p>
-                  </div>
-                )}
-                {selectedOrder.waiterName && (
-                  <div className="col-span-2">
-                    <p className="text-muted-foreground">Waiter</p>
-                    <p className="font-medium">{selectedOrder.waiterName}</p>
-                  </div>
-                )}
               </div>
 
               <div className="border-t pt-4">
@@ -355,10 +396,7 @@ export default function Orders() {
                 <div className="space-y-2">
                   {selectedOrder.items.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
-                      <span>
-                        {item.quantity}x {item.menuItemName}
-                        {item.notes && <span className="text-muted-foreground ml-1">({item.notes})</span>}
-                      </span>
+                      <span>{item.quantity}x {item.menuItemName}</span>
                       <span className="font-medium">{formatPrice(item.total)}</span>
                     </div>
                   ))}
@@ -386,10 +424,6 @@ export default function Orders() {
                   <span>Total</span>
                   <span>{formatPrice(selectedOrder.total)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Payment Method</span>
-                  <span className="capitalize">{selectedOrder.paymentMethod}</span>
-                </div>
               </div>
 
               <div className="flex gap-2">
@@ -398,10 +432,7 @@ export default function Orders() {
                   Print Invoice
                 </Button>
                 {selectedOrder.status !== 'cancelled' && (
-                  <Button 
-                    variant="destructive" 
-                    onClick={() => handleCancelRequest(selectedOrder)}
-                  >
+                  <Button variant="destructive" onClick={() => handleCancelRequest(selectedOrder)}>
                     <X className="h-4 w-4 mr-2" />
                     Cancel
                   </Button>
@@ -412,7 +443,7 @@ export default function Orders() {
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Password Dialog */}
+      {/* Cancel Password Dialog with OTP Input */}
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -422,20 +453,18 @@ export default function Orders() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-center">
               Enter the 5-digit password to cancel order <strong>{orderToCancel?.orderNumber}</strong>
             </p>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input
-                type="password"
-                maxLength={5}
-                placeholder="Enter 5-digit password"
-                value={cancelPassword}
-                onChange={(e) => setCancelPassword(e.target.value)}
-                className="text-center text-lg tracking-widest"
-              />
-            </div>
+            <PasswordOTPInput
+              value={cancelPassword}
+              onChange={(value) => { setCancelPassword(value); setPasswordError(false); }}
+              length={5}
+              error={passwordError}
+            />
+            {passwordError && (
+              <p className="text-sm text-destructive text-center">Invalid password</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelDialog(false)}>Cancel</Button>
