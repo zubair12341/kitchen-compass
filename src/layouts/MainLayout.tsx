@@ -28,9 +28,31 @@ export default function MainLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  // Map routes to their required permissions
+  const routePermissionMap: Record<string, string> = {
+    '': 'dashboard',
+    'dashboard': 'dashboard',
+    'pos': 'pos',
+    'online-orders': 'orders',
+    'takeaway-orders': 'orders',
+    'food-items': 'food-items',
+    'menu': 'food-items',
+    'recipes': 'recipes',
+    'ingredients': 'ingredients',
+    'store-stock': 'store-stock',
+    'stock': 'store-stock',
+    'kitchen-stock': 'kitchen-stock',
+    'orders': 'orders',
+    'daily-costs': 'daily-costs',
+    'daily-report': 'reports',
+    'reports': 'reports',
+    'staff': 'staff',
+    'settings': 'settings',
+  };
+
   // Check route permission
-  const currentPath = location.pathname.replace('/', '') || 'dashboard';
-  const pathPermission = currentPath === '' ? 'dashboard' : currentPath;
+  const currentPath = location.pathname.replace(/^\//, '') || '';
+  const pathPermission = routePermissionMap[currentPath] || currentPath;
   
   // Allow pos-users to access root (redirect to POS)
   if (!hasPermission(pathPermission) && pathPermission !== 'dashboard') {
