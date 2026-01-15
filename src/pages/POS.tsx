@@ -1026,7 +1026,7 @@ export default function POS() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-center">
-              {completedOrder?.orderType === 'dine-in' ? 'Order Placed!' : 'Order Completed!'}
+              {completedOrder?.orderType === 'dine-in' ? 'Order Placed!' : 'Order Placed!'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4 text-center">
@@ -1044,6 +1044,11 @@ export default function POS() {
             )}
             {completedOrder?.waiterName && (
               <p className="text-muted-foreground">Waiter: {completedOrder.waiterName}</p>
+            )}
+            {completedOrder?.orderType !== 'dine-in' && (
+              <p className="text-sm text-muted-foreground bg-yellow-50 p-2 rounded-lg">
+                Order is pending. Go to {completedOrder?.orderType === 'online' ? 'Online Orders' : 'Takeaway Orders'} to settle.
+              </p>
             )}
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">

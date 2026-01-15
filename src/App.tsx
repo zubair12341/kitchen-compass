@@ -13,8 +13,11 @@ import RecipeManagement from "./pages/RecipeManagement";
 import StoreStock from "./pages/StoreStock";
 import KitchenStock from "./pages/KitchenStock";
 import Orders from "./pages/Orders";
+import OnlineOrders from "./pages/OnlineOrders";
+import TakeawayOrders from "./pages/TakeawayOrders";
 import Reports from "./pages/Reports";
 import DailyCosts from "./pages/DailyCosts";
+import DailyReport from "./pages/DailyReport";
 import StaffManagement from "./pages/StaffManagement";
 import RestaurantSettings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -54,7 +57,10 @@ const App = () => (
               <Route path="/stock" element={<StoreStock />} />
               <Route path="/kitchen-stock" element={<KitchenStock />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/online-orders" element={<OnlineOrders />} />
+              <Route path="/takeaway-orders" element={<TakeawayOrders />} />
               <Route path="/daily-costs" element={<DailyCosts />} />
+              <Route path="/daily-report" element={<DailyReport />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/staff" element={<StaffManagement />} />
               <Route path="/settings" element={<RestaurantSettings />} />
