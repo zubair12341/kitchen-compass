@@ -1079,16 +1079,16 @@ export const useRestaurantStore = create<RestaurantState>()(
           discountValue,
           total,
           paymentMethod: orderDetails.paymentMethod,
-          status: orderDetails.orderType === 'dine-in' ? 'pending' : 'completed',
-          customerName: orderDetails.customerName,
-          tableId: orderDetails.tableId,
-          tableNumber: table?.number,
-          waiterId: orderDetails.waiterId,
-          waiterName: waiter?.name,
-          orderType: orderDetails.orderType,
-          createdAt: new Date(),
-          completedAt: orderDetails.orderType !== 'dine-in' ? new Date() : undefined,
-        };
+        status: 'pending', // All orders start as pending
+        customerName: orderDetails.customerName,
+        tableId: orderDetails.tableId,
+        tableNumber: table?.number,
+        waiterId: orderDetails.waiterId,
+        waiterName: waiter?.name,
+        orderType: orderDetails.orderType,
+        createdAt: new Date(),
+        completedAt: undefined, // Set when order is settled
+      };
 
         // Deduct ingredients from kitchen stock with order tracking
         const orderNumber = order.orderNumber;

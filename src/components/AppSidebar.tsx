@@ -14,6 +14,9 @@ import {
   LogOut,
   Banknote,
   BarChart3,
+  Wifi,
+  ShoppingBag,
+  Calendar,
 } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +38,8 @@ import { Button } from '@/components/ui/button';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, permission: 'dashboard' },
   { name: 'POS', href: '/pos', icon: ShoppingCart, permission: 'pos' },
+  { name: 'Online Orders', href: '/online-orders', icon: Wifi, permission: 'orders' },
+  { name: 'Takeaway Orders', href: '/takeaway-orders', icon: ShoppingBag, permission: 'orders' },
   { name: 'Food Items', href: '/food-items', icon: UtensilsCrossed, permission: 'food-items' },
   { name: 'Recipes', href: '/recipes', icon: BookOpen, permission: 'recipes' },
   { name: 'Ingredients', href: '/ingredients', icon: Package, permission: 'ingredients' },
@@ -42,6 +47,7 @@ const navigation = [
   { name: 'Kitchen Stock', href: '/kitchen-stock', icon: ChefHat, permission: 'kitchen-stock', showBadge: true },
   { name: 'Orders', href: '/orders', icon: FileText, permission: 'orders' },
   { name: 'Daily Costs', href: '/daily-costs', icon: Banknote, permission: 'daily-costs' },
+  { name: 'Daily Report', href: '/daily-report', icon: Calendar, permission: 'reports' },
   { name: 'Reports', href: '/reports', icon: BarChart3, permission: 'reports' },
   { name: 'Staff', href: '/staff', icon: Users, permission: 'staff' },
   { name: 'Settings', href: '/settings', icon: Settings, permission: 'settings' },
