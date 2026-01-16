@@ -44,6 +44,235 @@ export type Database = {
         }
         Relationships: []
       }
+      ingredients: {
+        Row: {
+          category: string
+          cost_per_unit: number
+          created_at: string
+          id: string
+          kitchen_stock: number
+          low_stock_threshold: number
+          name: string
+          store_stock: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          kitchen_stock?: number
+          low_stock_threshold?: number
+          name: string
+          store_stock?: number
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          cost_per_unit?: number
+          created_at?: string
+          id?: string
+          kitchen_stock?: number
+          low_stock_threshold?: number
+          name?: string
+          store_stock?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      menu_categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      menu_items: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image: string | null
+          is_available: boolean
+          name: string
+          price: number
+          profit_margin: number
+          recipe: Json
+          recipe_cost: number
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image?: string | null
+          is_available?: boolean
+          name: string
+          price?: number
+          profit_margin?: number
+          recipe?: Json
+          recipe_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image?: string | null
+          is_available?: boolean
+          name?: string
+          price?: number
+          profit_margin?: number
+          recipe?: Json
+          recipe_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "menu_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          menu_item_id: string
+          menu_item_name: string
+          notes: string | null
+          order_id: string
+          quantity: number
+          total: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          menu_item_id: string
+          menu_item_name: string
+          notes?: string | null
+          order_id: string
+          quantity?: number
+          total?: number
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          menu_item_id?: string
+          menu_item_name?: string
+          notes?: string | null
+          order_id?: string
+          quantity?: number
+          total?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          customer_name: string | null
+          discount: number
+          discount_type: string
+          discount_value: number
+          id: string
+          order_number: string
+          order_type: string
+          payment_method: string
+          status: string
+          subtotal: number
+          table_id: string | null
+          table_number: number | null
+          tax: number
+          total: number
+          waiter_id: string | null
+          waiter_name: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          discount?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          order_number: string
+          order_type: string
+          payment_method?: string
+          status?: string
+          subtotal?: number
+          table_id?: string | null
+          table_number?: number | null
+          tax?: number
+          total?: number
+          waiter_id?: string | null
+          waiter_name?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          discount?: number
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          order_number?: string
+          order_type?: string
+          payment_method?: string
+          status?: string
+          subtotal?: number
+          table_id?: string | null
+          table_number?: number | null
+          tax?: number
+          total?: number
+          waiter_id?: string | null
+          waiter_name?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -74,6 +303,186 @@ export type Database = {
         }
         Relationships: []
       }
+      restaurant_settings: {
+        Row: {
+          address: string | null
+          business_day_cutoff_hour: number
+          business_day_cutoff_minute: number
+          created_at: string
+          currency: string
+          currency_symbol: string
+          id: string
+          invoice_footer: string | null
+          invoice_gst_enabled: boolean
+          invoice_logo_url: string | null
+          invoice_show_logo: boolean
+          invoice_title: string | null
+          name: string
+          phone: string | null
+          security_cancel_password: string
+          tax_rate: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          business_day_cutoff_hour?: number
+          business_day_cutoff_minute?: number
+          created_at?: string
+          currency?: string
+          currency_symbol?: string
+          id?: string
+          invoice_footer?: string | null
+          invoice_gst_enabled?: boolean
+          invoice_logo_url?: string | null
+          invoice_show_logo?: boolean
+          invoice_title?: string | null
+          name?: string
+          phone?: string | null
+          security_cancel_password?: string
+          tax_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          business_day_cutoff_hour?: number
+          business_day_cutoff_minute?: number
+          created_at?: string
+          currency?: string
+          currency_symbol?: string
+          id?: string
+          invoice_footer?: string | null
+          invoice_gst_enabled?: boolean
+          invoice_logo_url?: string | null
+          invoice_show_logo?: boolean
+          invoice_title?: string | null
+          name?: string
+          phone?: string | null
+          security_cancel_password?: string
+          tax_rate?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      restaurant_tables: {
+        Row: {
+          capacity: number
+          created_at: string
+          current_order_id: string | null
+          floor: string
+          id: string
+          status: string
+          table_number: number
+        }
+        Insert: {
+          capacity?: number
+          created_at?: string
+          current_order_id?: string | null
+          floor?: string
+          id?: string
+          status?: string
+          table_number: number
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          current_order_id?: string | null
+          floor?: string
+          id?: string
+          status?: string
+          table_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_tables_current_order_id_fkey"
+            columns: ["current_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_purchases: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          ingredient_id: string
+          purchase_date: string
+          quantity: number
+          total_cost: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ingredient_id: string
+          purchase_date?: string
+          quantity?: number
+          total_cost?: number
+          unit_cost?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ingredient_id?: string
+          purchase_date?: string
+          quantity?: number
+          total_cost?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_purchases_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          from_location: string
+          id: string
+          ingredient_id: string
+          quantity: number
+          reason: string | null
+          to_location: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          from_location: string
+          id?: string
+          ingredient_id: string
+          quantity?: number
+          reason?: string | null
+          to_location: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          from_location?: string
+          id?: string
+          ingredient_id?: string
+          quantity?: number
+          reason?: string | null
+          to_location?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfers_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -92,6 +501,30 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      waiters: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
         }
         Relationships: []
       }
