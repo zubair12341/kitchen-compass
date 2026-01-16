@@ -41,6 +41,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Order, DiscountType } from '@/types/restaurant';
+import { printWithImages, playKitchenNotificationSound } from '@/hooks/usePrintWithImages';
 
 type OrderTypeSelection = 'dine-in' | 'online' | 'takeaway' | null;
 
@@ -298,36 +299,22 @@ export default function POS() {
       </html>
     `;
 
-    // Print using hidden iframe (same page, no popup)
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    iframe.style.left = '-9999px';
-    document.body.appendChild(iframe);
+    // Play loud kitchen notification sound
+    playKitchenNotificationSound();
 
-    const iframeDoc = iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(kitchenHtml);
-      iframeDoc.close();
-
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-
-      // Clean up iframe after print
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    }
-
-    setShowKitchenInvoice(false);
-    toast.success('Kitchen invoice printed!');
+    // Print using the utility function
+    printWithImages(kitchenHtml, () => {
+      setShowKitchenInvoice(false);
+      toast.success('Kitchen invoice printed!');
+    });
   };
 
   const printCustomerInvoice = () => {
     if (!completedOrder) return;
+
+    const logoHtml = settings.invoice?.showLogo && settings.invoice?.logoUrl 
+      ? `<div style="text-align: center; margin-bottom: 10px;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
+      : '';
 
     const invoiceHtml = `
       <html>
@@ -351,6 +338,7 @@ export default function POS() {
         </head>
         <body>
           <div class="header">
+            ${logoHtml}
             <h1>${settings.invoice?.title || settings.name}</h1>
             <p>${settings.address}</p>
             <p>Tel: ${settings.phone}</p>
@@ -392,29 +380,8 @@ export default function POS() {
       </html>
     `;
 
-    // Print using hidden iframe (same page, no popup)
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    iframe.style.left = '-9999px';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(invoiceHtml);
-      iframeDoc.close();
-
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-
-      // Clean up iframe after print
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    }
+    // Use printWithImages to wait for logo to load before printing
+    printWithImages(invoiceHtml);
   };
 
   // Order Type Selection Screen

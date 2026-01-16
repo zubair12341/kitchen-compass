@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils';
 import { Order } from '@/types/restaurant';
 import { PasswordOTPInput } from '@/components/PasswordOTPInput';
 import { format, subHours, startOfDay, isAfter } from 'date-fns';
+import { printWithImages } from '@/hooks/usePrintWithImages';
 
 interface InProgressOrdersProps {
   orderType: 'online' | 'takeaway';
@@ -157,6 +158,10 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
   const printInvoice = (order: Order) => {
     const gstEnabled = settings.invoice?.gstEnabled ?? true;
     
+    const logoHtml = settings.invoice?.showLogo && settings.invoice?.logoUrl 
+      ? `<div style="text-align: center; margin-bottom: 10px;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
+      : '';
+    
     const invoiceHtml = `
       <html>
         <head>
@@ -166,7 +171,6 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
             .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
             .header h1 { font-size: 16px; margin: 0; }
             .header p { font-size: 11px; margin: 3px 0; }
-            ${settings.invoice?.logoUrl ? `.logo { max-height: 60px; margin-bottom: 10px; }` : ''}
             .info { margin: 10px 0; font-size: 12px; }
             .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
             .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0; }
@@ -180,7 +184,7 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
         </head>
         <body>
           <div class="header">
-            ${settings.invoice?.logoUrl && settings.invoice?.showLogo ? `<img src="${settings.invoice.logoUrl}" alt="Logo" class="logo" />` : ''}
+            ${logoHtml}
             <h1>${settings.invoice?.title || settings.name}</h1>
             <p>${settings.address}</p>
             <p>Tel: ${settings.phone}</p>
@@ -219,27 +223,8 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
       </html>
     `;
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    iframe.style.left = '-9999px';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(invoiceHtml);
-      iframeDoc.close();
-
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    }
+    // Use printWithImages to wait for logo to load before printing
+    printWithImages(invoiceHtml);
   };
 
   const handleNewOrder = () => {

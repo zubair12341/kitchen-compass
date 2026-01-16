@@ -5,18 +5,51 @@ import { toast } from 'sonner';
 export function useOrderNotifications() {
   const orders = useRestaurantStore((state) => state.orders);
   const previousOrdersRef = useRef(orders);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const isFirstRender = useRef(true);
 
-  useEffect(() => {
-    // Create audio element for notification sound
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdWtwcHJ+gIR/fHZ9goqNjYiEfXV3e4GAgoF/fHl3dnl9goaJioqHg35+fn+BgoKCgYB+fH17fX+ChYeIiIeEgX5+foCBg4ODgoB/fnx9foGDhoiIiIaDgH1+f4GDhISEgoB+fXx+gIOGiIiHhYJ/fn5/gYOEhISCgH5+fX+Bg4WHiIeFg39+foCBg4SEg4KAfn19f4GEhoiIh4WCfn5+gIKEhISDgX9+fH6AgoWHiIiGg4B+fn+BgoSEhIKAfn18foKEhoiIhoSAfn5/gYKDhISCgX5+fX6Bg4aIiIeEgn5+f4CCg4ODgYF/fn1+gYSGh4iGg4B+fn+Bg4OEg4KAfn59f4KEhoiHhYOAfn5/gYOEhIOBgH5+foCCho==');
-    audioRef.current.volume = 0.5;
-    
-    return () => {
-      audioRef.current = null;
-    };
-  }, []);
+  // Play loud notification sound using Web Audio API
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Play 4 loud attention-grabbing beeps
+      const playBeep = (startTime: number, frequency: number = 880, duration: number = 0.25) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.type = 'square';
+        oscillator.frequency.value = frequency;
+        
+        // Full volume for maximum loudness
+        gainNode.gain.setValueAtTime(1.0, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      };
+
+      const now = audioContext.currentTime;
+      // Play ascending beeps pattern - very attention-grabbing
+      playBeep(now, 660, 0.15);
+      playBeep(now + 0.2, 880, 0.15);
+      playBeep(now + 0.4, 1100, 0.15);
+      playBeep(now + 0.6, 1320, 0.2);
+      // Repeat pattern for emphasis
+      playBeep(now + 0.9, 660, 0.15);
+      playBeep(now + 1.1, 880, 0.15);
+      playBeep(now + 1.3, 1100, 0.15);
+      playBeep(now + 1.5, 1320, 0.2);
+      
+    } catch (error) {
+      // Fallback to basic audio at max volume
+      const audio = new Audio('data:audio/wav;base64,UklGRrQFAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YZAFAABwgHCAcIBwgHCAcIBwgHCAcIBwgP9//3//f/9//3//f/9//3//f/9/cIBwgHCAcIBwgHCAcIBwgHCAcIBwgP9//3//f/9//3//f/9//3//f/9/cIBwgHCAcIBwgHCAcIBwgHCAcIBwgP9//3//f/9//3//f/9//3//f/9/cIBwgHCAcIBwgHCAcIBwgHCAcIBwgP9//3//f/9//3//f/9//3//f/9/cIBwgHCAcIBwgHCAcIBwgHCAcIBwgP9//3//f/9//3//f/9//3//f/9/');
+      audio.volume = 1.0;
+      audio.play().catch(() => console.log('Audio notification blocked by browser'));
+    }
+  };
 
   useEffect(() => {
     // Skip first render to avoid notification on page load
@@ -39,14 +72,8 @@ export function useOrderNotifications() {
 
     // Play sound and show toast for each new order
     newOrders.forEach((order) => {
-      // Play notification sound
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {
-          // Audio play might be blocked by browser
-          console.log('Audio notification blocked by browser');
-        });
-      }
+      // Play loud notification sound
+      playNotificationSound();
 
       // Show toast notification
       const orderTypeLabel = order.orderType === 'online' ? '🌐 Online Order' : '🛍️ Takeaway Order';
@@ -64,14 +91,6 @@ export function useOrderNotifications() {
 
     previousOrdersRef.current = orders;
   }, [orders]);
-
-  // Function to manually play notification sound (for testing)
-  const playNotificationSound = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(console.error);
-    }
-  };
 
   return { playNotificationSound };
 }

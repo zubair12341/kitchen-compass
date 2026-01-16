@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { PasswordOTPInput } from '@/components/PasswordOTPInput';
 import { exportToCSV } from '@/lib/csvExport';
+import { printWithImages } from '@/hooks/usePrintWithImages';
 
 export default function Orders() {
   const { orders, settings, cancelOrder, freeTable, tables } = useRestaurantStore();
@@ -125,19 +126,11 @@ export default function Orders() {
   };
 
   const handlePrintInvoice = (order: Order) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
     const logoHtml = settings.invoice?.showLogo && settings.invoice?.logoUrl 
       ? `<div style="text-align: center; margin-bottom: 10px;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
       : '';
 
-    doc.open();
-    doc.write(`
+    const invoiceHtml = `
       <html>
         <head>
           <title>Invoice - ${order.orderNumber}</title>
@@ -194,15 +187,10 @@ export default function Orders() {
           </div>
         </body>
       </html>
-    `);
-    doc.close();
+    `;
 
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-    
-    setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 1000);
+    // Use printWithImages to wait for logo to load before printing
+    printWithImages(invoiceHtml);
   };
 
   return (
