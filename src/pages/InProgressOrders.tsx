@@ -10,11 +10,13 @@ import {
   Plus,
   Clock,
   User,
-  Phone,
+  Search,
+  Filter,
 } from 'lucide-react';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -36,7 +38,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Order } from '@/types/restaurant';
 import { PasswordOTPInput } from '@/components/PasswordOTPInput';
-import { format } from 'date-fns';
+import { format, subHours, startOfDay, isAfter } from 'date-fns';
 
 interface InProgressOrdersProps {
   orderType: 'online' | 'takeaway';
@@ -58,19 +60,44 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
   const [cancelPassword, setCancelPassword] = useState('');
   const [cancelPasswordError, setCancelPasswordError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mobile'>('cash');
+  
+  // Filter and search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [timeFilter, setTimeFilter] = useState<'all' | 'hour' | 'today'>('all');
 
-  // Filter pending orders by type
+  // Filter pending orders by type, search, and time
   const pendingOrders = useMemo(() => {
-    return orders.filter(
-      (order) => order.status === 'pending' && order.orderType === orderType
-    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [orders, orderType]);
+    return orders.filter((order) => {
+      // Must be pending and correct type
+      if (order.status !== 'pending' || order.orderType !== orderType) return false;
+      
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesOrderNumber = order.orderNumber.toLowerCase().includes(query);
+        const matchesCustomer = order.customerName?.toLowerCase().includes(query) || false;
+        if (!matchesOrderNumber && !matchesCustomer) return false;
+      }
+      
+      // Time filter
+      const orderDate = new Date(order.createdAt);
+      if (timeFilter === 'hour') {
+        const oneHourAgo = subHours(new Date(), 1);
+        if (!isAfter(orderDate, oneHourAgo)) return false;
+      } else if (timeFilter === 'today') {
+        const todayStart = startOfDay(new Date());
+        if (!isAfter(orderDate, todayStart)) return false;
+      }
+      
+      return true;
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [orders, orderType, searchQuery, timeFilter]);
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
   const handleEditOrder = (order: Order) => {
     loadOrderToCart(order.id);
-    navigate('/pos', { state: { orderType: order.orderType } });
+    navigate('/pos', { state: { orderType: order.orderType, editMode: true } });
   };
 
   const handleOpenSettleDialog = (order: Order) => {
@@ -256,6 +283,36 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
           New Order
         </Button>
       </div>
+
+      {/* Filters and Search */}
+      <Card className="section-card">
+        <CardContent className="py-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by order number or customer name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={timeFilter} onValueChange={(v) => setTimeFilter(v as 'all' | 'hour' | 'today')}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Filter by time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="hour">Last Hour</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Pending Orders Count */}
       <Card className="stat-card">
