@@ -1,15 +1,24 @@
+import { useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import { Calculator } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRestaurantStore } from '@/store/restaurantStore';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
+import { Button } from '@/components/ui/button';
+import { CalculatorModal } from '@/components/CalculatorModal';
+import { useOrderNotifications } from '@/hooks/useOrderNotifications';
 
 
 export default function MainLayout() {
   const location = useLocation();
   const { user, isLoading, hasPermission } = useAuth();
   const settings = useRestaurantStore((state) => state.settings);
+  const [showCalculator, setShowCalculator] = useState(false);
+  
+  // Enable order notifications
+  useOrderNotifications();
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -66,12 +75,21 @@ export default function MainLayout() {
         <AppSidebar />
         
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Mobile Header with Toggle */}
+          {/* Header with Toggle and Calculator */}
           <header className="flex h-14 items-center gap-4 border-b border-border bg-card px-4 lg:px-6">
             <SidebarTrigger className="shrink-0" />
             <div className="flex-1">
               <h1 className="font-display font-bold lg:hidden">{settings.name}</h1>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowCalculator(true)}
+              className="shrink-0"
+              title="Open Calculator"
+            >
+              <Calculator className="h-5 w-5" />
+            </Button>
           </header>
 
           {/* Main Content */}
@@ -80,6 +98,9 @@ export default function MainLayout() {
           </main>
         </div>
       </div>
+      
+      {/* Calculator Modal */}
+      <CalculatorModal isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
     </SidebarProvider>
   );
 }
