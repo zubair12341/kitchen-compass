@@ -1,0 +1,480 @@
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useSupabaseActions } from '@/hooks/useSupabaseActions';
+import {
+  Ingredient,
+  MenuItem,
+  MenuCategory,
+  Order,
+  Table,
+  TableFloor,
+  Waiter,
+  RestaurantSettings,
+  StockPurchase,
+  StockTransfer,
+  CartItem,
+  LowStockAlert,
+  DiscountType,
+  IngredientCategory,
+} from '@/types/restaurant';
+
+// Default settings for when not logged in or settings not loaded
+const defaultSettings: RestaurantSettings = {
+  name: 'Restaurant',
+  address: '',
+  phone: '',
+  taxRate: 16,
+  currency: 'PKR',
+  currencySymbol: 'Rs.',
+  invoice: {
+    title: 'Restaurant',
+    footer: 'Thank you for dining with us!',
+    showLogo: true,
+    showTaxBreakdown: true,
+    gstEnabled: true,
+    logoUrl: '',
+  },
+  security: {
+    cancelOrderPassword: '12345',
+  },
+  businessDay: {
+    cutoffHour: 5,
+    cutoffMinute: 0,
+  },
+};
+
+// Ingredient categories (static)
+const ingredientCategories: IngredientCategory[] = [
+  { id: 'Meat', name: 'Gosht (Meat)' },
+  { id: 'Poultry', name: 'Murgh (Poultry)' },
+  { id: 'Vegetables', name: 'Sabziyan (Vegetables)' },
+  { id: 'Dairy', name: 'Dairy' },
+  { id: 'Grains', name: 'Anaj (Grains)' },
+  { id: 'Spices', name: 'Masalay (Spices)' },
+  { id: 'Oils', name: 'Tel (Oils)' },
+  { id: 'Beverages', name: 'Mashroobat (Beverages)' },
+];
+
+interface RestaurantContextType {
+  // Loading state
+  isLoading: boolean;
+  
+  // Data
+  settings: RestaurantSettings;
+  tables: Table[];
+  waiters: Waiter[];
+  ingredients: Ingredient[];
+  ingredientCategories: IngredientCategory[];
+  menuItems: MenuItem[];
+  menuCategories: MenuCategory[];
+  orders: Order[];
+  stockPurchases: StockPurchase[];
+  stockTransfers: StockTransfer[];
+  
+  // Cart (local state)
+  cart: CartItem[];
+  currentEditingOrderId: string | null;
+  
+  // Refetch
+  refetch: () => Promise<void>;
+  
+  // Settings actions
+  updateSettings: (updates: Partial<RestaurantSettings>) => Promise<void>;
+  updateInvoiceSettings: (invoice: Partial<RestaurantSettings['invoice']>) => Promise<void>;
+  
+  // Table actions
+  addTable: (table: Omit<Table, 'id' | 'status'>) => Promise<any>;
+  updateTable: (id: string, updates: Partial<Table>) => Promise<void>;
+  deleteTable: (id: string) => Promise<void>;
+  occupyTable: (tableId: string, orderId: string) => Promise<void>;
+  freeTable: (tableId: string) => Promise<void>;
+  getTablesByFloor: (floor: TableFloor) => Table[];
+  
+  // Waiter actions
+  addWaiter: (waiter: Omit<Waiter, 'id'>) => Promise<any>;
+  updateWaiter: (id: string, updates: Partial<Waiter>) => Promise<void>;
+  deleteWaiter: (id: string) => Promise<void>;
+  
+  // Ingredient actions
+  addIngredient: (ingredient: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'>) => Promise<any>;
+  updateIngredient: (id: string, updates: Partial<Ingredient>) => Promise<void>;
+  deleteIngredient: (id: string) => Promise<void>;
+  
+  // Stock actions
+  addStoreStock: (ingredientId: string, quantity: number, unitCost: number) => Promise<void>;
+  transferToKitchen: (ingredientId: string, quantity: number) => Promise<void>;
+  transferToStore: (ingredientId: string, quantity: number) => Promise<void>;
+  getStockPurchaseHistory: (ingredientId: string) => StockPurchase[];
+  
+  // Menu actions
+  addMenuItem: (item: Omit<MenuItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<any>;
+  updateMenuItem: (id: string, updates: Partial<MenuItem>) => Promise<void>;
+  deleteMenuItem: (id: string) => Promise<void>;
+  addMenuCategory: (category: Omit<MenuCategory, 'id'>) => Promise<any>;
+  deleteMenuCategory: (id: string) => Promise<void>;
+  
+  // Cart actions
+  addToCart: (menuItem: MenuItem) => void;
+  updateCartItemQuantity: (menuItemId: string, quantity: number) => void;
+  removeFromCart: (menuItemId: string) => void;
+  clearCart: () => void;
+  addCartItemNote: (menuItemId: string, note: string) => void;
+  loadOrderToCart: (orderId: string) => { order: Order; waiterId?: string } | null;
+  getOrderById: (orderId: string) => Order | undefined;
+  setCurrentEditingOrderId: (orderId: string | null) => void;
+  
+  // Order actions
+  completeOrder: (orderDetails: {
+    paymentMethod: 'cash' | 'card' | 'mobile';
+    customerName?: string;
+    tableId?: string;
+    waiterId?: string;
+    orderType: 'dine-in' | 'online' | 'takeaway';
+    discount?: number;
+    discountType?: DiscountType;
+    discountValue?: number;
+  }) => Promise<Order | null>;
+  updateOrder: (orderId: string, orderDetails: {
+    paymentMethod: 'cash' | 'card' | 'mobile';
+    customerName?: string;
+    tableId?: string;
+    waiterId?: string;
+    orderType: 'dine-in' | 'online' | 'takeaway';
+    discount?: number;
+    discountType?: DiscountType;
+    discountValue?: number;
+  }) => Promise<Order | null>;
+  settleOrder: (orderId: string) => Promise<void>;
+  cancelOrder: (orderId: string) => Promise<void>;
+  getTableOrder: (tableId: string) => Order | undefined;
+  
+  // Calculations
+  calculateRecipeCost: (recipe: { ingredientId: string; quantity: number }[]) => number;
+  getLowStockAlerts: () => LowStockAlert[];
+  getTodaysSales: () => { orders: number; revenue: number; cost: number; profit: number };
+}
+
+const RestaurantContext = createContext<RestaurantContextType | null>(null);
+
+export function RestaurantProvider({ children }: { children: React.ReactNode }) {
+  const data = useSupabaseData();
+  const actions = useSupabaseActions();
+  
+  // Local cart state
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [currentEditingOrderId, setCurrentEditingOrderId] = useState<string | null>(null);
+  
+  const settings = data.settings || defaultSettings;
+  
+  // Cart actions
+  const addToCart = useCallback((menuItem: MenuItem) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.menuItem.id === menuItem.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.menuItem.id === menuItem.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { menuItem, quantity: 1 }];
+    });
+  }, []);
+  
+  const updateCartItemQuantity = useCallback((menuItemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      setCart((prev) => prev.filter((item) => item.menuItem.id !== menuItemId));
+    } else {
+      setCart((prev) =>
+        prev.map((item) =>
+          item.menuItem.id === menuItemId ? { ...item, quantity } : item
+        )
+      );
+    }
+  }, []);
+  
+  const removeFromCart = useCallback((menuItemId: string) => {
+    setCart((prev) => prev.filter((item) => item.menuItem.id !== menuItemId));
+  }, []);
+  
+  const clearCart = useCallback(() => {
+    setCart([]);
+    setCurrentEditingOrderId(null);
+  }, []);
+  
+  const addCartItemNote = useCallback((menuItemId: string, note: string) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.menuItem.id === menuItemId ? { ...item, notes: note } : item
+      )
+    );
+  }, []);
+  
+  const loadOrderToCart = useCallback((orderId: string) => {
+    const order = data.orders.find((o) => o.id === orderId);
+    if (!order) return null;
+    
+    const cartItems: CartItem[] = [];
+    order.items.forEach((item) => {
+      const menuItem = data.menuItems.find((m) => m.id === item.menuItemId);
+      if (menuItem) {
+        cartItems.push({
+          menuItem,
+          quantity: item.quantity,
+          notes: item.notes,
+        });
+      }
+    });
+    
+    setCart(cartItems);
+    setCurrentEditingOrderId(orderId);
+    
+    return { order, waiterId: order.waiterId };
+  }, [data.orders, data.menuItems]);
+  
+  const getOrderById = useCallback((orderId: string) => {
+    return data.orders.find((o) => o.id === orderId);
+  }, [data.orders]);
+  
+  // Table helpers
+  const getTablesByFloor = useCallback((floor: TableFloor) => {
+    return data.tables.filter((t) => t.floor === floor);
+  }, [data.tables]);
+  
+  const getTableOrder = useCallback((tableId: string) => {
+    const table = data.tables.find((t) => t.id === tableId);
+    if (!table || !table.currentOrderId) return undefined;
+    return data.orders.find((o) => o.id === table.currentOrderId && o.status === 'pending');
+  }, [data.tables, data.orders]);
+  
+  // Stock helpers
+  const getStockPurchaseHistory = useCallback((ingredientId: string) => {
+    return data.stockPurchases
+      .filter((p) => p.ingredientId === ingredientId)
+      .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
+  }, [data.stockPurchases]);
+  
+  // Calculations
+  const calculateRecipeCost = useCallback((recipe: { ingredientId: string; quantity: number }[]) => {
+    return recipe.reduce((total, item) => {
+      const ingredient = data.ingredients.find((i) => i.id === item.ingredientId);
+      if (!ingredient) return total;
+      return total + ingredient.costPerUnit * item.quantity;
+    }, 0);
+  }, [data.ingredients]);
+  
+  const getLowStockAlerts = useCallback((): LowStockAlert[] => {
+    return data.ingredients
+      .filter((ing) => {
+        const totalStock = ing.storeStock + ing.kitchenStock;
+        return totalStock <= ing.lowStockThreshold;
+      })
+      .map((ing) => ({
+        ingredient: ing,
+        currentTotal: ing.storeStock + ing.kitchenStock,
+        threshold: ing.lowStockThreshold,
+        severity: ing.storeStock + ing.kitchenStock <= ing.lowStockThreshold / 2
+          ? 'critical' as const
+          : 'warning' as const,
+      }));
+  }, [data.ingredients]);
+  
+  const getTodaysSales = useCallback(() => {
+    const today = new Date().toDateString();
+    const todaysOrders = data.orders.filter(
+      (order) =>
+        new Date(order.createdAt).toDateString() === today &&
+        order.status === 'completed'
+    );
+    
+    const revenue = todaysOrders.reduce((sum, order) => sum + order.total, 0);
+    const cost = todaysOrders.reduce((sum, order) => {
+      return (
+        sum +
+        order.items.reduce((itemSum, item) => {
+          const menuItem = data.menuItems.find((m) => m.id === item.menuItemId);
+          return itemSum + (menuItem?.recipeCost || 0) * item.quantity;
+        }, 0)
+      );
+    }, 0);
+    
+    return {
+      orders: todaysOrders.length,
+      revenue,
+      cost,
+      profit: revenue - cost,
+    };
+  }, [data.orders, data.menuItems]);
+  
+  // Wrapped actions
+  const completeOrder = useCallback(async (orderDetails: any): Promise<Order | null> => {
+    const result = await actions.createOrder(
+      cart,
+      orderDetails,
+      settings,
+      data.tables,
+      data.waiters,
+      data.ingredients
+    );
+    if (result) {
+      clearCart();
+      await data.refetch();
+      // Return the order from the refetched data
+      const order = data.orders.find(o => o.id === result.id);
+      return order || null;
+    }
+    return null;
+  }, [cart, settings, data.tables, data.waiters, data.ingredients, actions, clearCart, data.refetch, data.orders]);
+  
+  const updateOrderAction = useCallback(async (orderId: string, orderDetails: any): Promise<Order | null> => {
+    const result = await actions.updateOrder(
+      orderId,
+      cart,
+      orderDetails,
+      settings,
+      data.tables,
+      data.waiters
+    );
+    if (result) {
+      clearCart();
+      await data.refetch();
+      const order = data.orders.find(o => o.id === result.id);
+      return order || null;
+    }
+    return null;
+  }, [cart, settings, data.tables, data.waiters, actions, clearCart, data.refetch, data.orders]);
+  
+  const settleOrderAction = useCallback(async (orderId: string) => {
+    const order = data.orders.find((o) => o.id === orderId);
+    await actions.settleOrder(orderId, order?.tableId);
+    data.refetch();
+  }, [data.orders, actions, data.refetch]);
+  
+  const cancelOrderAction = useCallback(async (orderId: string) => {
+    const order = data.orders.find((o) => o.id === orderId);
+    await actions.cancelOrder(orderId, order?.tableId, order?.items, data.menuItems, data.ingredients);
+    data.refetch();
+  }, [data.orders, data.menuItems, data.ingredients, actions, data.refetch]);
+  
+  const addStoreStockAction = useCallback(async (ingredientId: string, quantity: number, unitCost: number) => {
+    const ingredient = data.ingredients.find((i) => i.id === ingredientId);
+    if (ingredient) {
+      await actions.addStoreStock(ingredientId, quantity, unitCost, ingredient);
+      data.refetch();
+    }
+  }, [data.ingredients, actions, data.refetch]);
+  
+  const transferToKitchenAction = useCallback(async (ingredientId: string, quantity: number) => {
+    const ingredient = data.ingredients.find((i) => i.id === ingredientId);
+    if (ingredient) {
+      await actions.transferToKitchen(ingredientId, quantity, ingredient);
+      data.refetch();
+    }
+  }, [data.ingredients, actions, data.refetch]);
+  
+  const transferToStoreAction = useCallback(async (ingredientId: string, quantity: number) => {
+    const ingredient = data.ingredients.find((i) => i.id === ingredientId);
+    if (ingredient) {
+      await actions.transferToStore(ingredientId, quantity, ingredient);
+      data.refetch();
+    }
+  }, [data.ingredients, actions, data.refetch]);
+  
+  const updateSettingsAction = useCallback(async (updates: Partial<RestaurantSettings>) => {
+    await actions.updateSettings(updates);
+    data.refetch();
+  }, [actions, data.refetch]);
+  
+  const updateInvoiceSettingsAction = useCallback(async (invoice: Partial<RestaurantSettings['invoice']>) => {
+    await actions.updateSettings({ invoice: { ...settings.invoice, ...invoice } });
+    data.refetch();
+  }, [actions, settings, data.refetch]);
+  
+  // Generic action wrappers
+  const wrapAction = useCallback(<T extends (...args: any[]) => Promise<any>>(action: T) => {
+    return async (...args: Parameters<T>) => {
+      const result = await action(...args);
+      data.refetch();
+      return result;
+    };
+  }, [data.refetch]);
+  
+  const value = useMemo<RestaurantContextType>(() => ({
+    isLoading: data.isLoading,
+    settings,
+    tables: data.tables,
+    waiters: data.waiters,
+    ingredients: data.ingredients,
+    ingredientCategories,
+    menuItems: data.menuItems,
+    menuCategories: data.menuCategories,
+    orders: data.orders,
+    stockPurchases: data.stockPurchases,
+    stockTransfers: data.stockTransfers,
+    cart,
+    currentEditingOrderId,
+    refetch: data.refetch,
+    updateSettings: updateSettingsAction,
+    updateInvoiceSettings: updateInvoiceSettingsAction,
+    addTable: wrapAction(actions.addTable),
+    updateTable: wrapAction(actions.updateTable),
+    deleteTable: wrapAction(actions.deleteTable),
+    occupyTable: wrapAction(actions.occupyTable),
+    freeTable: wrapAction(actions.freeTable),
+    getTablesByFloor,
+    addWaiter: wrapAction(actions.addWaiter),
+    updateWaiter: wrapAction(actions.updateWaiter),
+    deleteWaiter: wrapAction(actions.deleteWaiter),
+    addIngredient: wrapAction(actions.addIngredient),
+    updateIngredient: wrapAction(actions.updateIngredient),
+    deleteIngredient: wrapAction(actions.deleteIngredient),
+    addStoreStock: addStoreStockAction,
+    transferToKitchen: transferToKitchenAction,
+    transferToStore: transferToStoreAction,
+    getStockPurchaseHistory,
+    addMenuItem: wrapAction(actions.addMenuItem),
+    updateMenuItem: wrapAction(actions.updateMenuItem),
+    deleteMenuItem: wrapAction(actions.deleteMenuItem),
+    addMenuCategory: wrapAction(actions.addMenuCategory),
+    deleteMenuCategory: wrapAction(actions.deleteMenuCategory),
+    addToCart,
+    updateCartItemQuantity,
+    removeFromCart,
+    clearCart,
+    addCartItemNote,
+    loadOrderToCart,
+    getOrderById,
+    setCurrentEditingOrderId,
+    completeOrder,
+    updateOrder: updateOrderAction,
+    settleOrder: settleOrderAction,
+    cancelOrder: cancelOrderAction,
+    getTableOrder,
+    calculateRecipeCost,
+    getLowStockAlerts,
+    getTodaysSales,
+  }), [
+    data, settings, cart, currentEditingOrderId, actions,
+    addToCart, updateCartItemQuantity, removeFromCart, clearCart,
+    addCartItemNote, loadOrderToCart, getOrderById, getTablesByFloor,
+    getTableOrder, getStockPurchaseHistory, calculateRecipeCost,
+    getLowStockAlerts, getTodaysSales, completeOrder, updateOrderAction,
+    settleOrderAction, cancelOrderAction, addStoreStockAction,
+    transferToKitchenAction, transferToStoreAction, updateSettingsAction,
+    updateInvoiceSettingsAction, wrapAction,
+  ]);
+  
+  return (
+    <RestaurantContext.Provider value={value}>
+      {children}
+    </RestaurantContext.Provider>
+  );
+}
+
+export function useRestaurant() {
+  const context = useContext(RestaurantContext);
+  if (!context) {
+    throw new Error('useRestaurant must be used within a RestaurantProvider');
+  }
+  return context;
+}
