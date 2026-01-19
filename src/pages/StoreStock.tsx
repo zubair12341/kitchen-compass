@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Package, ArrowRight, Plus, AlertTriangle, Warehouse, History } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function StoreStock() {
-  const { ingredients, ingredientCategories, settings, addStoreStock, transferToKitchen, getLowStockAlerts, getStockPurchaseHistory } = useRestaurantStore();
+  const { ingredients, ingredientCategories, settings, addStoreStock, transferToKitchen, getLowStockAlerts, getStockPurchaseHistory } = useRestaurant();
   const [showAddStockDialog, setShowAddStockDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
@@ -40,7 +40,7 @@ export default function StoreStock() {
       return;
     }
 
-    addStoreStock(selectedIngredient, qty, cost, 'Stock received');
+    addStoreStock(selectedIngredient, qty, cost);
     toast.success('Stock added successfully');
     setShowAddStockDialog(false);
     setSelectedIngredient('');

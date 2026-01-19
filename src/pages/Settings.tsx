@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Save, Building, Bell, Plus, Trash2, FileText, Receipt, Lock, Eye, EyeOff, Clock, Upload, Image } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +25,7 @@ export default function RestaurantSettings() {
     deleteMenuCategory,
     addIngredientCategory,
     deleteIngredientCategory,
-  } = useRestaurantStore();
+  } = useRestaurant();
   
   const logoInputRef = useRef<HTMLInputElement>(null);
   

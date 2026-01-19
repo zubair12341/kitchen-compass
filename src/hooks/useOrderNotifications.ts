@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { toast } from 'sonner';
 
 export function useOrderNotifications() {
-  const orders = useRestaurantStore((state) => state.orders);
+  const { orders } = useRestaurant();
   const previousOrdersRef = useRef(orders);
   const isFirstRender = useRef(true);
 

@@ -94,6 +94,25 @@ export function useSupabaseActions() {
     return data;
   };
 
+  const updateMenuCategory = async (id: string, updates: Partial<MenuCategory>) => {
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.icon !== undefined) dbUpdates.icon = updates.icon;
+    if (updates.color !== undefined) dbUpdates.color = updates.color;
+    if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
+
+    const { error } = await supabase
+      .from('menu_categories')
+      .update(dbUpdates)
+      .eq('id', id);
+
+    if (error) {
+      toast.error('Failed to update category');
+      throw error;
+    }
+    toast.success('Category updated');
+  };
+
   const deleteMenuCategory = async (id: string) => {
     const { error } = await supabase.from('menu_categories').delete().eq('id', id);
     if (error) {
@@ -101,6 +120,36 @@ export function useSupabaseActions() {
       throw error;
     }
     toast.success('Category deleted');
+  };
+
+  // Ingredient Category actions
+  const addIngredientCategory = async (category: { name: string; icon?: string; color?: string; sortOrder?: number }) => {
+    const { data, error } = await supabase
+      .from('ingredient_categories' as any)
+      .insert({
+        name: category.name,
+        icon: category.icon || '📦',
+        color: category.color || 'bg-gray-100',
+        sort_order: category.sortOrder || 0,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error('Failed to add ingredient category');
+      throw error;
+    }
+    toast.success('Ingredient category added');
+    return data;
+  };
+
+  const deleteIngredientCategory = async (id: string) => {
+    const { error } = await supabase.from('ingredient_categories' as any).delete().eq('id', id);
+    if (error) {
+      toast.error('Failed to delete ingredient category');
+      throw error;
+    }
+    toast.success('Ingredient category deleted');
   };
 
   // Menu Item actions
@@ -680,7 +729,11 @@ export function useSupabaseActions() {
     deleteIngredient,
     // Menu Category actions
     addMenuCategory,
+    updateMenuCategory,
     deleteMenuCategory,
+    // Ingredient Category actions
+    addIngredientCategory,
+    deleteIngredientCategory,
     // Menu Item actions
     addMenuItem,
     updateMenuItem,

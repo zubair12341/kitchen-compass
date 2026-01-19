@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Search, Edit2, Trash2, UtensilsCrossed } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { MenuItem } from '@/types/restaurant';
 
 export default function FoodItems() {
-  const { menuItems, menuCategories, settings, addMenuItem, updateMenuItem, deleteMenuItem } = useRestaurantStore();
+  const { menuItems, menuCategories, settings, addMenuItem, updateMenuItem, deleteMenuItem } = useRestaurant();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
@@ -86,6 +86,8 @@ export default function FoodItems() {
         categoryId: formData.categoryId,
         isAvailable: formData.isAvailable,
         recipe: [],
+        recipeCost: 0,
+        profitMargin: 100,
       });
       toast.success('Food item added');
     }

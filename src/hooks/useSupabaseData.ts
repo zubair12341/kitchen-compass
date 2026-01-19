@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Ingredient,
+  IngredientCategory,
   MenuItem,
   MenuCategory,
   Order,
@@ -16,6 +17,15 @@ import {
   RecipeIngredient,
 } from '@/types/restaurant';
 import { toast } from 'sonner';
+
+// Transform database ingredient category to app type
+const transformIngredientCategory = (row: any): IngredientCategory => ({
+  id: row.id,
+  name: row.name,
+  icon: row.icon,
+  color: row.color,
+  sortOrder: row.sort_order,
+});
 
 // Transform database row to app types
 const transformIngredient = (row: any): Ingredient => ({
@@ -149,6 +159,7 @@ export function useSupabaseData() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [ingredientCategories, setIngredientCategories] = useState<IngredientCategory[]>([]);
   const [menuCategories, setMenuCategories] = useState<MenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
@@ -170,6 +181,7 @@ export function useSupabaseData() {
       // Fetch all data in parallel
       const [
         ingredientsRes,
+        ingredientCategoriesRes,
         categoriesRes,
         menuItemsRes,
         tablesRes,
@@ -180,6 +192,7 @@ export function useSupabaseData() {
         transfersRes,
       ] = await Promise.all([
         supabase.from('ingredients').select('*').order('name'),
+        supabase.from('ingredient_categories' as any).select('*').order('sort_order'),
         supabase.from('menu_categories').select('*').order('sort_order'),
         supabase.from('menu_items').select('*').order('name'),
         supabase.from('restaurant_tables').select('*').order('table_number'),
@@ -193,6 +206,11 @@ export function useSupabaseData() {
       // Handle ingredients
       if (ingredientsRes.data) {
         setIngredients(ingredientsRes.data.map(transformIngredient));
+      }
+
+      // Handle ingredient categories
+      if (ingredientCategoriesRes.data) {
+        setIngredientCategories(ingredientCategoriesRes.data.map(transformIngredientCategory));
       }
 
       // Handle menu categories
@@ -294,6 +312,7 @@ export function useSupabaseData() {
   return {
     isLoading,
     ingredients,
+    ingredientCategories,
     menuCategories,
     menuItems,
     tables,

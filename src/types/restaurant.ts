@@ -169,6 +169,9 @@ export interface DailySales {
 export interface IngredientCategory {
   id: string;
   name: string;
+  icon?: string;
+  color?: string;
+  sortOrder?: number;
 }
 
 export interface InvoiceSettings {

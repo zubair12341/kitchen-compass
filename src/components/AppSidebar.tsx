@@ -18,7 +18,7 @@ import {
   ShoppingBag,
   Calendar,
 } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
@@ -57,8 +57,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const getLowStockAlerts = useRestaurantStore((s) => s.getLowStockAlerts);
-  const settings = useRestaurantStore((s) => s.settings);
+  const { getLowStockAlerts, settings } = useRestaurant();
   const { signOut, hasPermission, userName, userRole } = useAuth();
   const lowStockAlerts = getLowStockAlerts();
 
