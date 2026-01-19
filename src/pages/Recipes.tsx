@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, X, BookOpen, Banknote } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';

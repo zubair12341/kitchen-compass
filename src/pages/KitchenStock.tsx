@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChefHat, ArrowLeft, Package, AlertTriangle, History } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function KitchenStock() {
-  const { ingredients, ingredientCategories, settings, transferToStore, getLowStockAlerts, stockDeductions } = useRestaurantStore();
+  const { ingredients, ingredientCategories, settings, transferToStore, getLowStockAlerts, stockTransfers } = useRestaurant();
   const [showReturnDialog, setShowReturnDialog] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -20,9 +20,9 @@ export default function KitchenStock() {
   const lowStockAlerts = getLowStockAlerts();
   const kitchenIngredients = ingredients.filter((ing) => ing.kitchenStock > 0);
 
-  // Get recent stock deductions sorted by date (exclude cancelled deductions)
-  const recentDeductions = [...stockDeductions]
-    .filter((d) => !d.cancelled)
+  // Get recent stock transfers sorted by date
+  const recentTransfers = [...stockTransfers]
+    .filter((t) => t.toLocation === 'kitchen' || t.fromLocation === 'kitchen')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 50);
 
@@ -201,10 +201,10 @@ export default function KitchenStock() {
         <TabsContent value="history">
           <Card className="section-card">
             <CardHeader>
-              <CardTitle className="text-lg">Stock Deduction History</CardTitle>
+              <CardTitle className="text-lg">Stock Transfer History</CardTitle>
             </CardHeader>
             <CardContent>
-              {recentDeductions.length > 0 ? (
+              {recentTransfers.length > 0 ? (
                 <div className="overflow-hidden rounded-lg border">
                   <table className="data-table">
                     <thead>
@@ -212,20 +212,24 @@ export default function KitchenStock() {
                         <th>Date & Time</th>
                         <th>Ingredient</th>
                         <th>Quantity</th>
-                        <th>Order #</th>
+                        <th>Type</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {recentDeductions.map((deduction) => (
-                        <tr key={deduction.id}>
+                      {recentTransfers.map((transfer) => (
+                        <tr key={transfer.id}>
                           <td className="text-muted-foreground">
-                            {format(new Date(deduction.createdAt), 'dd MMM yyyy, hh:mm a')}
+                            {format(new Date(transfer.createdAt), 'dd MMM yyyy, hh:mm a')}
                           </td>
-                          <td className="font-medium">{getIngredientName(deduction.ingredientId)}</td>
-                          <td>{deduction.quantity.toFixed(2)}</td>
+                          <td className="font-medium">{getIngredientName(transfer.ingredientId)}</td>
+                          <td>{transfer.quantity.toFixed(2)}</td>
                           <td>
-                            <span className="px-2 py-1 bg-primary/10 text-primary rounded text-sm">
-                              {deduction.orderNumber || 'Manual'}
+                            <span className={`px-2 py-1 rounded text-sm ${
+                              transfer.toLocation === 'kitchen' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {transfer.toLocation === 'kitchen' ? 'To Kitchen' : 'To Store'}
                             </span>
                           </td>
                         </tr>
@@ -236,8 +240,8 @@ export default function KitchenStock() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <History className="h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-4 font-medium">No deductions yet</p>
-                  <p className="text-sm text-muted-foreground">Stock deductions will appear here when orders are completed</p>
+                  <p className="mt-4 font-medium">No transfers yet</p>
+                  <p className="text-sm text-muted-foreground">Stock transfers will appear here</p>
                 </div>
               )}
             </CardContent>

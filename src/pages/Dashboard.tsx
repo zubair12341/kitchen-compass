@@ -8,14 +8,14 @@ import {
   ShoppingCart,
   Banknote,
 } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
-  const { orders, menuItems, ingredients, settings, getLowStockAlerts, getTodaysSales } = useRestaurantStore();
+  const { orders, menuItems, ingredients, settings, getLowStockAlerts, getTodaysSales } = useRestaurant();
   const lowStockAlerts = getLowStockAlerts();
   const todaysSales = getTodaysSales();
 

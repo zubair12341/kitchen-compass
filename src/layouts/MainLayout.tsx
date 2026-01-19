@@ -3,7 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Calculator } from 'lucide-react';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { useOrderNotifications } from '@/hooks/useOrderNotifications';
 export default function MainLayout() {
   const location = useLocation();
   const { user, isLoading, hasPermission } = useAuth();
-  const settings = useRestaurantStore((state) => state.settings);
+  const { settings } = useRestaurant();
   const [showCalculator, setShowCalculator] = useState(false);
   
   // Enable order notifications

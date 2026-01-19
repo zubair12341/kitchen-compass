@@ -43,8 +43,8 @@ const defaultSettings: RestaurantSettings = {
   },
 };
 
-// Ingredient categories (static)
-const ingredientCategories: IngredientCategory[] = [
+// Fallback ingredient categories (used if DB is empty)
+const defaultIngredientCategories: IngredientCategory[] = [
   { id: 'Meat', name: 'Gosht (Meat)' },
   { id: 'Poultry', name: 'Murgh (Poultry)' },
   { id: 'Vegetables', name: 'Sabziyan (Vegetables)' },
@@ -111,7 +111,10 @@ interface RestaurantContextType {
   updateMenuItem: (id: string, updates: Partial<MenuItem>) => Promise<void>;
   deleteMenuItem: (id: string) => Promise<void>;
   addMenuCategory: (category: Omit<MenuCategory, 'id'>) => Promise<any>;
+  updateMenuCategory: (id: string, updates: Partial<MenuCategory>) => Promise<void>;
   deleteMenuCategory: (id: string) => Promise<void>;
+  addIngredientCategory: (category: Omit<IngredientCategory, 'id'>) => Promise<any>;
+  deleteIngredientCategory: (id: string) => Promise<void>;
   
   // Cart actions
   addToCart: (menuItem: MenuItem) => void;
@@ -405,7 +408,7 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     tables: data.tables,
     waiters: data.waiters,
     ingredients: data.ingredients,
-    ingredientCategories,
+    ingredientCategories: data.ingredientCategories.length > 0 ? data.ingredientCategories : defaultIngredientCategories,
     menuItems: data.menuItems,
     menuCategories: data.menuCategories,
     orders: data.orders,
@@ -436,7 +439,10 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     updateMenuItem: wrapAction(actions.updateMenuItem),
     deleteMenuItem: wrapAction(actions.deleteMenuItem),
     addMenuCategory: wrapAction(actions.addMenuCategory),
+    updateMenuCategory: wrapAction(actions.updateMenuCategory),
     deleteMenuCategory: wrapAction(actions.deleteMenuCategory),
+    addIngredientCategory: wrapAction(actions.addIngredientCategory),
+    deleteIngredientCategory: wrapAction(actions.deleteIngredientCategory),
     addToCart,
     updateCartItemQuantity,
     removeFromCart,

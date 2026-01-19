@@ -19,7 +19,7 @@ import {
   Percent,
   XCircle,
 } from 'lucide-react';
-import { useRestaurantStore } from '@/store/restaurantStore';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -63,7 +63,7 @@ export default function POS() {
     loadOrderToCart,
     cancelOrder,
     freeTable,
-  } = useRestaurantStore();
+  } = useRestaurant();
 
   const [orderType, setOrderType] = useState<OrderTypeSelection>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -175,11 +175,11 @@ export default function POS() {
     setShowCancelConfirm(true);
   };
 
-  const handleCompleteOrder = () => {
+  const handleCompleteOrder = async () => {
     let order: Order | null = null;
 
     if (isEditingExistingOrder && currentEditingOrderId) {
-      order = updateOrder(currentEditingOrderId, {
+      order = await updateOrder(currentEditingOrderId, {
         paymentMethod,
         customerName: customerName || undefined,
         tableId: selectedTableId || undefined,
@@ -189,9 +189,11 @@ export default function POS() {
         discountType,
         discountValue,
       });
-      toast.success('Order updated successfully!');
+      if (order) {
+        toast.success('Order updated successfully!');
+      }
     } else {
-      order = completeOrder({
+      order = await completeOrder({
         paymentMethod,
         customerName: customerName || undefined,
         tableId: selectedTableId || undefined,
@@ -217,18 +219,10 @@ export default function POS() {
     }
   };
 
-  const handleSettleAndClose = () => {
+  const handleSettleAndClose = async () => {
     if (completedOrder && completedOrder.tableId) {
-      // Update order status to completed and free the table
-      const store = useRestaurantStore.getState();
-      store.freeTable(completedOrder.tableId);
-      useRestaurantStore.setState((state) => ({
-        orders: state.orders.map((o) =>
-          o.id === completedOrder.id
-            ? { ...o, status: 'completed' as const, completedAt: new Date() }
-            : o
-        ),
-      }));
+      // Free the table - the settleOrder action will handle status update
+      await freeTable(completedOrder.tableId);
       toast.success('Order completed and table freed!');
     }
     setCompletedOrder(null);
