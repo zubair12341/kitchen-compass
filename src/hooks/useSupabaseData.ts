@@ -212,7 +212,6 @@ export function useSupabaseData() {
       // Fetch all data in parallel
       const [
         ingredientsRes,
-        ingredientCategoriesRes,
         categoriesRes,
         menuItemsRes,
         tablesRes,
@@ -225,7 +224,6 @@ export function useSupabaseData() {
         salesRes,
       ] = await Promise.all([
         supabase.from('ingredients').select('*').order('name'),
-        supabase.from('ingredient_categories' as any).select('*').order('sort_order'),
         supabase.from('menu_categories').select('*').order('sort_order'),
         supabase.from('menu_items').select('*').order('name'),
         supabase.from('restaurant_tables').select('*').order('table_number'),
@@ -234,18 +232,21 @@ export function useSupabaseData() {
         supabase.from('restaurant_settings').select('*').limit(1).maybeSingle(),
         supabase.from('stock_purchases').select('*').order('created_at', { ascending: false }),
         supabase.from('stock_transfers').select('*').order('created_at', { ascending: false }),
-        supabase.from('stock_removals' as any).select('*').order('created_at', { ascending: false }),
-        supabase.from('stock_sales' as any).select('*').order('created_at', { ascending: false }),
+        supabase.from('stock_removals').select('*').order('created_at', { ascending: false }),
+        supabase.from('stock_sales').select('*').order('created_at', { ascending: false }),
       ]);
 
       // Handle ingredients
       if (ingredientsRes.data) {
         setIngredients(ingredientsRes.data.map(transformIngredient));
-      }
-
-      // Handle ingredient categories
-      if (ingredientCategoriesRes.data) {
-        setIngredientCategories(ingredientCategoriesRes.data.map(transformIngredientCategory));
+        
+        // Extract unique categories from ingredients as fallback
+        const uniqueCategories = [...new Set(ingredientsRes.data.map(i => i.category))];
+        const categoryObjects: IngredientCategory[] = uniqueCategories.map(cat => ({
+          id: cat,
+          name: cat,
+        }));
+        setIngredientCategories(categoryObjects);
       }
 
       // Handle menu categories
