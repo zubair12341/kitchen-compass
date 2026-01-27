@@ -315,20 +315,26 @@ export function useSupabaseActions() {
       if (error) {
         console.error('Failed to free table via client:', error);
         // Fallback through backend helper (service-role)
-        const { data, error: fnErr } = await supabase.functions.invoke('table-update', {
-          body: { action: 'free', tableId },
-        });
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke('table-update', {
+            body: { action: 'free', tableId },
+          });
 
-        if (fnErr || !data?.success) {
-          const msg = extractSupabaseErrorMessage(fnErr) || data?.error || 'Unknown error';
-          console.error('Fallback freeTable failed:', { fnErr, data });
-          toast.error(`Failed to update table: ${msg}`);
-          throw fnErr ?? new Error(msg);
+          if (fnErr || !data?.success) {
+            const msg = extractSupabaseErrorMessage(fnErr) || data?.error || 'Unknown error';
+            console.error('Fallback freeTable failed:', { fnErr, data });
+            // Log but don't throw - let the caller decide how critical this is
+            return { success: false, error: msg };
+          }
+        } catch (fnCallErr) {
+          console.error('Edge function call failed:', fnCallErr);
+          return { success: false, error: extractSupabaseErrorMessage(fnCallErr) };
         }
       }
+      return { success: true };
     } catch (err) {
       console.error('freeTable exception:', err);
-      throw err;
+      return { success: false, error: extractSupabaseErrorMessage(err) };
     }
   };
 
@@ -837,10 +843,7 @@ export function useSupabaseActions() {
   };
 
   const settleOrder = async (orderId: string, tableId?: string) => {
-    if (tableId) {
-      await freeTable(tableId);
-    }
-
+    // CRITICAL: Update order status FIRST (most important operation)
     const { error } = await supabase
       .from('orders')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
@@ -850,35 +853,22 @@ export function useSupabaseActions() {
       toast.error('Failed to settle order');
       throw error;
     }
+
+    // Then free the table (non-blocking - don't let table errors break the flow)
+    if (tableId) {
+      try {
+        await freeTable(tableId);
+      } catch (tableErr) {
+        console.error('Failed to free table after settle, continuing:', tableErr);
+        // Don't throw - order is already settled, table will sync on next load
+      }
+    }
+
     toast.success('Order settled');
   };
 
   const cancelOrder = async (orderId: string, tableId?: string, orderItems?: OrderItem[], menuItems?: MenuItem[], ingredients?: Ingredient[]) => {
-    if (tableId) {
-      await freeTable(tableId);
-    }
-
-    // Restore kitchen stock
-    if (orderItems && menuItems && ingredients) {
-      for (const orderItem of orderItems) {
-        const menuItem = menuItems.find((m) => m.id === orderItem.menuItemId);
-        if (menuItem) {
-          for (const recipeItem of menuItem.recipe) {
-            const ingredient = ingredients.find((i) => i.id === recipeItem.ingredientId);
-            if (ingredient) {
-              const quantityToRestore = recipeItem.quantity * orderItem.quantity;
-              await supabase
-                .from('ingredients')
-                .update({
-                  kitchen_stock: ingredient.kitchenStock + quantityToRestore,
-                })
-                .eq('id', recipeItem.ingredientId);
-            }
-          }
-        }
-      }
-    }
-
+    // CRITICAL: Update order status FIRST (most important operation)
     const { error } = await supabase
       .from('orders')
       .update({ status: 'cancelled' })
@@ -888,6 +878,43 @@ export function useSupabaseActions() {
       toast.error('Failed to cancel order');
       throw error;
     }
+
+    // Then free the table (non-blocking - don't let table errors break the flow)
+    if (tableId) {
+      try {
+        await freeTable(tableId);
+      } catch (tableErr) {
+        console.error('Failed to free table after cancel, continuing:', tableErr);
+        // Don't throw - order is already cancelled, table will sync on next load
+      }
+    }
+
+    // Restore kitchen stock (non-blocking)
+    if (orderItems && menuItems && ingredients) {
+      try {
+        for (const orderItem of orderItems) {
+          const menuItem = menuItems.find((m) => m.id === orderItem.menuItemId);
+          if (menuItem) {
+            for (const recipeItem of menuItem.recipe) {
+              const ingredient = ingredients.find((i) => i.id === recipeItem.ingredientId);
+              if (ingredient) {
+                const quantityToRestore = recipeItem.quantity * orderItem.quantity;
+                await supabase
+                  .from('ingredients')
+                  .update({
+                    kitchen_stock: ingredient.kitchenStock + quantityToRestore,
+                  })
+                  .eq('id', recipeItem.ingredientId);
+              }
+            }
+          }
+        }
+      } catch (stockErr) {
+        console.error('Failed to restore stock after cancel:', stockErr);
+        // Don't throw - order is already cancelled
+      }
+    }
+
     toast.success('Order cancelled');
   };
 
