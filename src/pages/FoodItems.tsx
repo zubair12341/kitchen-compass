@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { MenuItem } from '@/types/restaurant';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 
 export default function FoodItems() {
   const { menuItems, menuCategories, settings, addMenuItem, updateMenuItem, deleteMenuItem } = useRestaurant();
@@ -25,6 +26,9 @@ export default function FoodItems() {
     categoryId: '',
     isAvailable: true,
   });
+  
+  const [deleteTarget, setDeleteTarget] = useState<MenuItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const formatPrice = (price: number) => `${settings.currencySymbol} ${price.toLocaleString()}`;
 
@@ -94,9 +98,17 @@ export default function FoodItems() {
     setShowDialog(false);
   };
 
-  const handleDelete = (id: string) => {
-    deleteMenuItem(id);
-    toast.success('Food item deleted');
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteMenuItem(deleteTarget.id);
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   return (
@@ -165,7 +177,7 @@ export default function FoodItems() {
                   <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(item)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(item.id)}>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(item)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -266,6 +278,16 @@ export default function FoodItems() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete Food Item?"
+        itemName={deleteTarget?.name}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

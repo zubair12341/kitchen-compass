@@ -110,6 +110,44 @@ export type Database = {
         }
         Relationships: []
       }
+      menu_item_variants: {
+        Row: {
+          created_at: string
+          id: string
+          is_available: boolean
+          menu_item_id: string
+          name: string
+          price: number
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          menu_item_id: string
+          name: string
+          price?: number
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          menu_item_id?: string
+          name?: string
+          price?: number
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_variants_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           category_id: string | null
@@ -174,6 +212,8 @@ export type Database = {
           quantity: number
           total: number
           unit_price: number
+          variant_id: string | null
+          variant_name: string | null
         }
         Insert: {
           created_at?: string
@@ -185,6 +225,8 @@ export type Database = {
           quantity?: number
           total?: number
           unit_price?: number
+          variant_id?: string | null
+          variant_name?: string | null
         }
         Update: {
           created_at?: string
@@ -196,6 +238,8 @@ export type Database = {
           quantity?: number
           total?: number
           unit_price?: number
+          variant_id?: string | null
+          variant_name?: string | null
         }
         Relationships: [
           {
@@ -203,6 +247,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "menu_item_variants"
             referencedColumns: ["id"]
           },
         ]

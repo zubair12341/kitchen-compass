@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Table, Waiter } from '@/types/restaurant';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 
 export default function StaffManagement() {
   const {
@@ -29,6 +30,11 @@ export default function StaffManagement() {
   const [showWaiterDialog, setShowWaiterDialog] = useState(false);
   const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null);
   const [waiterForm, setWaiterForm] = useState({ name: '', phone: '', isActive: true });
+  
+  // Delete confirmation state
+  const [deleteTableTarget, setDeleteTableTarget] = useState<Table | null>(null);
+  const [deleteWaiterTarget, setDeleteWaiterTarget] = useState<Waiter | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Table handlers
   const handleOpenTableDialog = (table?: Table) => {
@@ -65,14 +71,44 @@ export default function StaffManagement() {
     setShowTableDialog(false);
   };
 
-  const handleDeleteTable = async (id: string) => {
-    const table = tables.find(t => t.id === id);
-    if (table?.status === 'occupied') {
+  const handleDeleteTable = (table: Table) => {
+    if (table.status === 'occupied') {
       toast.error('Cannot delete occupied table');
       return;
     }
-    await deleteTable(id);
-    toast.success('Table deleted');
+    setDeleteTableTarget(table);
+  };
+  
+  const handleDeleteTableConfirm = async () => {
+    if (!deleteTableTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteTable(deleteTableTarget.id);
+      toast.success('Table deleted');
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteTableTarget(null);
+    }
+  };
+  
+  const handleDeleteWaiter = (waiter: Waiter) => {
+    setDeleteWaiterTarget(waiter);
+  };
+  
+  const handleDeleteWaiterConfirm = async () => {
+    if (!deleteWaiterTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteWaiter(deleteWaiterTarget.id);
+      toast.success('Waiter deleted');
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteWaiterTarget(null);
+    }
   };
 
   // Waiter handlers
@@ -112,7 +148,7 @@ export default function StaffManagement() {
   };
 
   // Table Card Component
-  const TableCard = ({ table, onEdit, onDelete }: { table: Table; onEdit: (t: Table) => void; onDelete: (id: string) => void }) => (
+  const TableCard = ({ table, onEdit, onDelete }: { table: Table; onEdit: (t: Table) => void; onDelete: (t: Table) => void }) => (
     <div
       className={`relative rounded-xl border-2 p-4 ${
         table.status === 'occupied'
@@ -138,8 +174,8 @@ export default function StaffManagement() {
           variant="outline"
           size="sm"
           className="text-destructive hover:text-destructive"
-          onClick={() => onDelete(table.id)}
           disabled={table.status === 'occupied'}
+          onClick={() => onDelete(table)}
         >
           <Trash2 className="h-3 w-3" />
         </Button>
@@ -297,10 +333,7 @@ export default function StaffManagement() {
                               variant="ghost"
                               size="icon"
                               className="text-destructive hover:text-destructive"
-                              onClick={async () => {
-                                await deleteWaiter(waiter.id);
-                                toast.success('Waiter deleted');
-                              }}
+                              onClick={() => handleDeleteWaiter(waiter)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -471,6 +504,26 @@ export default function StaffManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Delete Table Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteTableTarget}
+        onOpenChange={(open) => !open && setDeleteTableTarget(null)}
+        title="Delete Table?"
+        itemName={deleteTableTarget ? `Table ${deleteTableTarget.number}` : undefined}
+        onConfirm={handleDeleteTableConfirm}
+        isLoading={isDeleting}
+      />
+      
+      {/* Delete Waiter Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteWaiterTarget}
+        onOpenChange={(open) => !open && setDeleteWaiterTarget(null)}
+        title="Delete Waiter?"
+        itemName={deleteWaiterTarget?.name}
+        onConfirm={handleDeleteWaiterConfirm}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
