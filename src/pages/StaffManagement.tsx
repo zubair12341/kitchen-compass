@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Plus, Edit2, Trash2, UserCircle, ChefHat, Shield, ShieldCheck } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, ChefHat, Shield, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +10,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Table, Waiter, Staff, UserRole } from '@/types/restaurant';
+import { Table, Waiter } from '@/types/restaurant';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function StaffManagement() {
   const {
-    tables, waiters, staff,
+    tables, waiters,
     addTable, updateTable, deleteTable,
     addWaiter, updateWaiter, deleteWaiter,
-    addStaff, updateStaff, deleteStaff,
-  } = useRestaurantStore();
+  } = useRestaurant();
 
   // Table state
   const [showTableDialog, setShowTableDialog] = useState(false);
@@ -29,18 +29,6 @@ export default function StaffManagement() {
   const [showWaiterDialog, setShowWaiterDialog] = useState(false);
   const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null);
   const [waiterForm, setWaiterForm] = useState({ name: '', phone: '', isActive: true });
-
-  // Staff state
-  const [showStaffDialog, setShowStaffDialog] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
-  const [staffForm, setStaffForm] = useState<{
-    name: string;
-    phone: string;
-    email: string;
-    password: string;
-    role: UserRole;
-    isActive: boolean;
-  }>({ name: '', phone: '', email: '', password: '', role: 'pos_user', isActive: true });
 
   // Table handlers
   const handleOpenTableDialog = (table?: Table) => {
@@ -54,7 +42,7 @@ export default function StaffManagement() {
     setShowTableDialog(true);
   };
 
-  const handleSaveTable = () => {
+  const handleSaveTable = async () => {
     const number = parseInt(tableForm.number);
     const capacity = parseInt(tableForm.capacity);
     
@@ -68,22 +56,22 @@ export default function StaffManagement() {
     }
 
     if (editingTable) {
-      updateTable(editingTable.id, { number, capacity, floor: tableForm.floor });
+      await updateTable(editingTable.id, { number, capacity, floor: tableForm.floor });
       toast.success('Table updated');
     } else {
-      addTable({ number, capacity, floor: tableForm.floor });
+      await addTable({ number, capacity, floor: tableForm.floor });
       toast.success('Table added');
     }
     setShowTableDialog(false);
   };
 
-  const handleDeleteTable = (id: string) => {
+  const handleDeleteTable = async (id: string) => {
     const table = tables.find(t => t.id === id);
     if (table?.status === 'occupied') {
       toast.error('Cannot delete occupied table');
       return;
     }
-    deleteTable(id);
+    await deleteTable(id);
     toast.success('Table deleted');
   };
 
@@ -99,75 +87,20 @@ export default function StaffManagement() {
     setShowWaiterDialog(true);
   };
 
-  const handleSaveWaiter = () => {
+  const handleSaveWaiter = async () => {
     if (!waiterForm.name.trim()) {
       toast.error('Please enter waiter name');
       return;
     }
 
     if (editingWaiter) {
-      updateWaiter(editingWaiter.id, waiterForm);
+      await updateWaiter(editingWaiter.id, waiterForm);
       toast.success('Waiter updated');
     } else {
-      addWaiter(waiterForm);
+      await addWaiter(waiterForm);
       toast.success('Waiter added');
     }
     setShowWaiterDialog(false);
-  };
-
-  // Staff handlers
-  const handleOpenStaffDialog = (staffMember?: Staff) => {
-    if (staffMember) {
-      setEditingStaff(staffMember);
-      setStaffForm({
-        name: staffMember.name,
-        phone: staffMember.phone,
-        email: staffMember.email,
-        password: staffMember.password,
-        role: staffMember.role,
-        isActive: staffMember.isActive,
-      });
-    } else {
-      setEditingStaff(null);
-      setStaffForm({ name: '', phone: '', email: '', password: '', role: 'pos_user', isActive: true });
-    }
-    setShowStaffDialog(true);
-  };
-
-  const handleSaveStaff = () => {
-    if (!staffForm.name.trim() || !staffForm.email.trim()) {
-      toast.error('Please enter name and email');
-      return;
-    }
-    if (!editingStaff && !staffForm.password.trim()) {
-      toast.error('Please enter a password');
-      return;
-    }
-
-    if (editingStaff) {
-      updateStaff(editingStaff.id, staffForm);
-      toast.success('Staff updated');
-    } else {
-      addStaff(staffForm);
-      toast.success('Staff added');
-    }
-    setShowStaffDialog(false);
-  };
-
-  const getRoleIcon = (role: UserRole) => {
-    switch (role) {
-      case 'admin': return <ShieldCheck className="h-4 w-4" />;
-      case 'manager': return <Shield className="h-4 w-4" />;
-      default: return <UserCircle className="h-4 w-4" />;
-    }
-  };
-
-  const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case 'admin': return 'bg-destructive/10 text-destructive';
-      case 'manager': return 'bg-warning/10 text-warning';
-      default: return 'bg-primary/10 text-primary';
-    }
   };
 
   const getFloorLabel = (floor: 'ground' | 'first' | 'family') => {
@@ -364,8 +297,8 @@ export default function StaffManagement() {
                               variant="ghost"
                               size="icon"
                               className="text-destructive hover:text-destructive"
-                              onClick={() => {
-                                deleteWaiter(waiter.id);
+                              onClick={async () => {
+                                await deleteWaiter(waiter.id);
                                 toast.success('Waiter deleted');
                               }}
                             >
@@ -387,99 +320,63 @@ export default function StaffManagement() {
           </Card>
         </TabsContent>
 
-        {/* Staff Tab */}
+        {/* Staff Tab - Placeholder for Supabase Auth */}
         <TabsContent value="staff">
           <Card className="section-card">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Staff & Users</CardTitle>
-                <CardDescription>Manage admins, managers, and POS users</CardDescription>
-              </div>
-              <Button onClick={() => handleOpenStaffDialog()} className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Staff
-              </Button>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Staff & Users
+              </CardTitle>
+              <CardDescription>Manage admins, managers, and POS users</CardDescription>
             </CardHeader>
-            <CardContent>
-              {/* Role Legend */}
-              <div className="flex gap-4 mb-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full ${getRoleBadge('admin')}`}>Admin</span>
-                  <span className="text-muted-foreground">Full access</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full ${getRoleBadge('manager')}`}>Manager</span>
-                  <span className="text-muted-foreground">Operational access</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full ${getRoleBadge('pos_user')}`}>POS User</span>
-                  <span className="text-muted-foreground">POS & Orders only</span>
-                </div>
-              </div>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Staff Users Managed via Authentication</AlertTitle>
+                <AlertDescription>
+                  Staff users (Admin, Manager, POS User) are managed through the authentication system. 
+                  New staff accounts can be created by an Admin using the backend. User roles are stored 
+                  in the database and control access permissions throughout the application.
+                </AlertDescription>
+              </Alert>
 
-              <div className="overflow-hidden rounded-lg border">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th className="text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {staff.map((s) => (
-                      <tr key={s.id}>
-                        <td>
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                              {getRoleIcon(s.role)}
-                            </div>
-                            <span className="font-medium">{s.name}</span>
-                          </div>
-                        </td>
-                        <td className="text-muted-foreground">{s.email}</td>
-                        <td className="text-muted-foreground">{s.phone}</td>
-                        <td>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleBadge(s.role)}`}>
-                            {s.role === 'pos_user' ? 'POS User' : s.role.charAt(0).toUpperCase() + s.role.slice(1)}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={s.isActive ? 'badge-success' : 'badge-destructive'}>
-                            {s.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleOpenStaffDialog(s)}>
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => {
-                                deleteStaff(s.id);
-                                toast.success('Staff deleted');
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {staff.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No staff members added yet.
+              {/* Role Legend */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 rounded-lg bg-destructive/10">
+                      <ShieldCheck className="h-5 w-5 text-destructive" />
+                    </div>
+                    <span className="font-semibold">Admin</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Full access to all features including staff management, settings, and reports.
+                  </p>
                 </div>
-              )}
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 rounded-lg bg-warning/10">
+                      <Shield className="h-5 w-5 text-warning" />
+                    </div>
+                    <span className="font-semibold">Manager</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Operational access to POS, menu, stock, orders, and reports. Cannot manage staff.
+                  </p>
+                </div>
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <Users className="h-5 w-5 text-primary" />
+                    </div>
+                    <span className="font-semibold">POS User</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Limited to POS operations and viewing orders only.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -504,7 +401,7 @@ export default function StaffManagement() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="table-capacity">Capacity (Seats)</Label>
+              <Label htmlFor="table-capacity">Capacity (seats)</Label>
               <Input
                 id="table-capacity"
                 type="number"
@@ -548,7 +445,7 @@ export default function StaffManagement() {
                 id="waiter-name"
                 value={waiterForm.name}
                 onChange={(e) => setWaiterForm({ ...waiterForm, name: e.target.value })}
-                placeholder="Ahmed Khan"
+                placeholder="Muhammad Ali"
               />
             </div>
             <div className="space-y-2">
@@ -571,79 +468,6 @@ export default function StaffManagement() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowWaiterDialog(false)}>Cancel</Button>
             <Button onClick={handleSaveWaiter}>{editingWaiter ? 'Update' : 'Add'} Waiter</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Staff Dialog */}
-      <Dialog open={showStaffDialog} onOpenChange={setShowStaffDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingStaff ? 'Edit Staff' : 'Add Staff'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="staff-name">Name</Label>
-              <Input
-                id="staff-name"
-                value={staffForm.name}
-                onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                placeholder="Muhammad Ali"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-email">Email</Label>
-              <Input
-                id="staff-email"
-                type="email"
-                value={staffForm.email}
-                onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                placeholder="ali@restaurant.pk"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-password">Password {editingStaff && '(leave blank to keep current)'}</Label>
-              <Input
-                id="staff-password"
-                type="password"
-                value={staffForm.password}
-                onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                placeholder={editingStaff ? '••••••••' : 'Enter password'}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-phone">Phone</Label>
-              <Input
-                id="staff-phone"
-                value={staffForm.phone}
-                onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                placeholder="+92 300 1234567"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={staffForm.role} onValueChange={(v: UserRole) => setStaffForm({ ...staffForm, role: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin (Full Access)</SelectItem>
-                  <SelectItem value="manager">Manager (Operational)</SelectItem>
-                  <SelectItem value="pos_user">POS User (Limited)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch
-                checked={staffForm.isActive}
-                onCheckedChange={(checked) => setStaffForm({ ...staffForm, isActive: checked })}
-              />
-              <Label>Active</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowStaffDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveStaff}>{editingStaff ? 'Update' : 'Add'} Staff</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

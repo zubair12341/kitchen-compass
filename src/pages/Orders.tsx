@@ -16,7 +16,7 @@ import { exportToCSV } from '@/lib/csvExport';
 import { printWithImages } from '@/hooks/usePrintWithImages';
 
 export default function Orders() {
-  const { orders, settings, cancelOrder, freeTable, tables } = useRestaurantStore();
+  const { orders, settings, cancelOrder, freeTable, tables } = useRestaurant();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);

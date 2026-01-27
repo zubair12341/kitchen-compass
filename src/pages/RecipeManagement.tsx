@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { RecipeIngredient, MenuItem } from '@/types/restaurant';
 
 export default function RecipeManagement() {
-  const { menuItems, menuCategories, ingredients, settings, updateMenuItem, calculateRecipeCost } = useRestaurantStore();
+  const { menuItems, menuCategories, ingredients, settings, updateMenuItem, calculateRecipeCost } = useRestaurant();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [recipe, setRecipe] = useState<RecipeIngredient[]>([]);
