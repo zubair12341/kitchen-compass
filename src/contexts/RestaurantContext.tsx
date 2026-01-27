@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useSupabaseActions } from '@/hooks/useSupabaseActions';
 import {
@@ -167,6 +168,11 @@ interface RestaurantContextType {
 
 const RestaurantContext = createContext<RestaurantContextType | null>(null);
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value?: string | null) => !!value && UUID_RE.test(value);
+
 export function RestaurantProvider({ children }: { children: React.ReactNode }) {
   const data = useSupabaseData();
   const actions = useSupabaseActions();
@@ -176,6 +182,57 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
   const [currentEditingOrderId, setCurrentEditingOrderId] = useState<string | null>(null);
   
   const settings = data.settings || defaultSettings;
+
+  const fetchOrderWithItems = useCallback(async (orderId: string): Promise<Order | null> => {
+    // Fetch the order + items directly so callers (POS/Orders) can open modals immediately
+    // without waiting for React state to propagate after refetch().
+    const [{ data: orderRow, error: orderErr }, { data: itemRows, error: itemsErr }] = await Promise.all([
+      supabase.from('orders').select('*').eq('id', orderId).single(),
+      supabase.from('order_items').select('*').eq('order_id', orderId),
+    ]);
+
+    if (orderErr) {
+      console.error('fetchOrderWithItems order error:', orderErr);
+      return null;
+    }
+    if (itemsErr) {
+      console.error('fetchOrderWithItems items error:', itemsErr);
+    }
+
+    const items = (itemRows || []).map((row: any) => ({
+      menuItemId: row.menu_item_id,
+      menuItemName: row.menu_item_name,
+      quantity: row.quantity,
+      unitPrice: Number(row.unit_price),
+      total: Number(row.total),
+      notes: row.notes ?? undefined,
+    }));
+
+    const order: Order = {
+      id: orderRow.id,
+      orderNumber: orderRow.order_number,
+      items,
+      subtotal: Number(orderRow.subtotal),
+      tax: Number(orderRow.tax),
+      discount: Number(orderRow.discount),
+      discountType: orderRow.discount_type as any,
+      discountValue: Number(orderRow.discount_value),
+      discountReason: orderRow.discount_reason || undefined,
+      total: Number(orderRow.total),
+      paymentMethod: orderRow.payment_method as any,
+      status: orderRow.status as any,
+      customerName: orderRow.customer_name,
+      tableId: orderRow.table_id,
+      tableNumber: orderRow.table_number,
+      waiterId: orderRow.waiter_id,
+      waiterName: orderRow.waiter_name,
+      orderType: orderRow.order_type as any,
+      createdAt: new Date(orderRow.created_at),
+      completedAt: orderRow.completed_at ? new Date(orderRow.completed_at) : undefined,
+    };
+
+    return order;
+  }, []);
   
   // Cart actions
   const addToCart = useCallback((menuItem: MenuItem) => {
@@ -330,12 +387,12 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     if (result) {
       clearCart();
       await data.refetch();
-      // Return the order from the refetched data
-      const order = data.orders.find(o => o.id === result.id);
-      return order || null;
+      // React state updates from refetch() aren't available synchronously here;
+      // fetch the just-created order (with items) directly so POS can open the settle/print modal.
+      return await fetchOrderWithItems(result.id);
     }
     return null;
-  }, [cart, settings, data.tables, data.waiters, data.ingredients, actions, clearCart, data.refetch, data.orders]);
+  }, [cart, settings, data.tables, data.waiters, data.ingredients, actions, clearCart, data.refetch, fetchOrderWithItems]);
   
   const updateOrderAction = useCallback(async (orderId: string, orderDetails: any): Promise<Order | null> => {
     const result = await actions.updateOrder(
@@ -349,21 +406,22 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     if (result) {
       clearCart();
       await data.refetch();
-      const order = data.orders.find(o => o.id === result.id);
-      return order || null;
+      return await fetchOrderWithItems(result.id);
     }
     return null;
-  }, [cart, settings, data.tables, data.waiters, actions, clearCart, data.refetch, data.orders]);
+  }, [cart, settings, data.tables, data.waiters, actions, clearCart, data.refetch, fetchOrderWithItems]);
   
   const settleOrderAction = useCallback(async (orderId: string) => {
     const order = data.orders.find((o) => o.id === orderId);
-    await actions.settleOrder(orderId, order?.tableId || undefined);
+    const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
+    await actions.settleOrder(orderId, safeTableId);
     await data.refetch();
   }, [data.orders, actions, data.refetch]);
   
   const cancelOrderAction = useCallback(async (orderId: string) => {
     const order = data.orders.find((o) => o.id === orderId);
-    await actions.cancelOrder(orderId, order?.tableId || undefined, order?.items, data.menuItems, data.ingredients);
+    const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
+    await actions.cancelOrder(orderId, safeTableId, order?.items, data.menuItems, data.ingredients);
     await data.refetch();
   }, [data.orders, data.menuItems, data.ingredients, actions, data.refetch]);
   
