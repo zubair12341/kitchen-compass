@@ -277,47 +277,47 @@ export function useSupabaseActions() {
   };
 
   const occupyTable = async (tableId: string, orderId: string) => {
-    try {
-      await updateTable(tableId, { status: 'occupied', currentOrderId: orderId });
-    } catch (err) {
-      // Fallback through backend helper (helps in cases where client update fails intermittently)
-      const { data, error } = await supabase.functions.invoke('table-update', {
+    // Primary: direct client update
+    const { error } = await supabase
+      .from('restaurant_tables')
+      .update({ status: 'occupied', current_order_id: orderId })
+      .eq('id', tableId);
+
+    if (error) {
+      console.error('Failed to occupy table:', error);
+      // Fallback through backend helper (service-role)
+      const { data, error: fnErr } = await supabase.functions.invoke('table-update', {
         body: { action: 'occupy', tableId, orderId },
       });
 
-      if (error || !data?.success) {
-        const msg = extractSupabaseErrorMessage(error) || data?.error || 'Unknown error';
-        console.error('Fallback occupyTable failed:', { error, data });
+      if (fnErr || !data?.success) {
+        const msg = extractSupabaseErrorMessage(fnErr) || data?.error || 'Unknown error';
+        console.error('Fallback occupyTable failed:', { fnErr, data });
         toast.error(`Failed to update table: ${msg}`);
-        throw error ?? new Error(msg);
+        throw fnErr ?? new Error(msg);
       }
     }
   };
 
   const freeTable = async (tableId: string) => {
-    try {
-      // Use null instead of undefined to properly clear the field in Supabase
-      const { error } = await supabase
-        .from('restaurant_tables')
-        .update({ status: 'available', current_order_id: null })
-        .eq('id', tableId);
+    // Primary: direct client update
+    const { error } = await supabase
+      .from('restaurant_tables')
+      .update({ status: 'available', current_order_id: null })
+      .eq('id', tableId);
 
-      if (error) {
-        console.error('Failed to free table:', error);
-        toast.error(`Failed to free table: ${error.message}`);
-        throw error;
-      }
-    } catch (err) {
-      // Fallback through backend helper
-      const { data, error } = await supabase.functions.invoke('table-update', {
+    if (error) {
+      console.error('Failed to free table:', error);
+      // Fallback through backend helper (service-role)
+      const { data, error: fnErr } = await supabase.functions.invoke('table-update', {
         body: { action: 'free', tableId },
       });
 
-      if (error || !data?.success) {
-        const msg = extractSupabaseErrorMessage(error) || data?.error || 'Unknown error';
-        console.error('Fallback freeTable failed:', { error, data });
+      if (fnErr || !data?.success) {
+        const msg = extractSupabaseErrorMessage(fnErr) || data?.error || 'Unknown error';
+        console.error('Fallback freeTable failed:', { fnErr, data });
         toast.error(`Failed to free table: ${msg}`);
-        throw error ?? new Error(msg);
+        throw fnErr ?? new Error(msg);
       }
     }
   };
