@@ -376,53 +376,93 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
   
   // Wrapped actions
   const completeOrder = useCallback(async (orderDetails: any): Promise<Order | null> => {
-    const result = await actions.createOrder(
-      cart,
-      orderDetails,
-      settings,
-      data.tables,
-      data.waiters,
-      data.ingredients
-    );
-    if (result) {
-      clearCart();
-      await data.refetch();
-      // React state updates from refetch() aren't available synchronously here;
-      // fetch the just-created order (with items) directly so POS can open the settle/print modal.
-      return await fetchOrderWithItems(result.id);
+    // Capture cart snapshot before any async operations
+    const cartSnapshot = [...cart];
+    if (cartSnapshot.length === 0) {
+      console.error('completeOrder: Cart is empty');
+      return null;
     }
-    return null;
+    
+    try {
+      const result = await actions.createOrder(
+        cartSnapshot,
+        orderDetails,
+        settings,
+        data.tables,
+        data.waiters,
+        data.ingredients
+      );
+      if (result) {
+        // Only clear cart after successful order creation
+        clearCart();
+        // Fetch the order with items immediately for the completion modal
+        const order = await fetchOrderWithItems(result.id);
+        // Background refetch to update local state
+        data.refetch();
+        return order;
+      }
+      return null;
+    } catch (error) {
+      console.error('completeOrder error:', error);
+      return null;
+    }
   }, [cart, settings, data.tables, data.waiters, data.ingredients, actions, clearCart, data.refetch, fetchOrderWithItems]);
   
   const updateOrderAction = useCallback(async (orderId: string, orderDetails: any): Promise<Order | null> => {
-    const result = await actions.updateOrder(
-      orderId,
-      cart,
-      orderDetails,
-      settings,
-      data.tables,
-      data.waiters
-    );
-    if (result) {
-      clearCart();
-      await data.refetch();
-      return await fetchOrderWithItems(result.id);
+    // Capture cart snapshot before any async operations
+    const cartSnapshot = [...cart];
+    if (cartSnapshot.length === 0) {
+      console.error('updateOrder: Cart is empty');
+      return null;
     }
-    return null;
+    
+    try {
+      const result = await actions.updateOrder(
+        orderId,
+        cartSnapshot,
+        orderDetails,
+        settings,
+        data.tables,
+        data.waiters
+      );
+      if (result) {
+        // Only clear cart after successful update
+        clearCart();
+        // Fetch the order with items immediately for the completion modal
+        const order = await fetchOrderWithItems(result.id);
+        // Background refetch to update local state
+        data.refetch();
+        return order;
+      }
+      return null;
+    } catch (error) {
+      console.error('updateOrder error:', error);
+      return null;
+    }
   }, [cart, settings, data.tables, data.waiters, actions, clearCart, data.refetch, fetchOrderWithItems]);
   
   const settleOrderAction = useCallback(async (orderId: string) => {
-    const order = data.orders.find((o) => o.id === orderId);
-    const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
-    await actions.settleOrder(orderId, safeTableId);
-    await data.refetch();
+    try {
+      const order = data.orders.find((o) => o.id === orderId);
+      const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
+      await actions.settleOrder(orderId, safeTableId);
+      await data.refetch();
+    } catch (error) {
+      console.error('settleOrder error:', error);
+      throw error;
+    }
   }, [data.orders, actions, data.refetch]);
   
   const cancelOrderAction = useCallback(async (orderId: string) => {
-    const order = data.orders.find((o) => o.id === orderId);
-    const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
-    await actions.cancelOrder(orderId, safeTableId, order?.items, data.menuItems, data.ingredients);
-    await data.refetch();
+    try {
+      const order = data.orders.find((o) => o.id === orderId);
+      const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
+      await actions.cancelOrder(orderId, safeTableId, order?.items, data.menuItems, data.ingredients);
+      await data.refetch();
+    } catch (error) {
+      console.error('cancelOrder error:', error);
+      throw error;
+    }
   }, [data.orders, data.menuItems, data.ingredients, actions, data.refetch]);
   
   const addStoreStockAction = useCallback(async (ingredientId: string, quantity: number, unitCost: number) => {

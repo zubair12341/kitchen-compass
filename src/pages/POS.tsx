@@ -177,40 +177,52 @@ export default function POS() {
   };
 
   const handleCompleteOrder = async () => {
+    // Safety check - cart should not be empty at this point
+    if (cart.length === 0) {
+      toast.error('Cart is empty. Please add items before placing order.');
+      return;
+    }
+    
     let order: Order | null = null;
 
-    if (isEditingExistingOrder && currentEditingOrderId) {
-      order = await updateOrder(currentEditingOrderId, {
-        paymentMethod,
-        customerName: customerName || undefined,
-        tableId: selectedTableId || undefined,
-        waiterId: selectedWaiterId || undefined,
-        orderType: orderType!,
-        discount: discountAmount,
-        discountType,
-        discountValue,
-        discountReason: discountValue > 0 ? discountReason : undefined,
-      });
-      if (order) {
-        toast.success('Order updated successfully!');
-      }
-    } else {
-      order = await completeOrder({
-        paymentMethod,
-        customerName: customerName || undefined,
-        tableId: selectedTableId || undefined,
-        waiterId: selectedWaiterId || undefined,
-        orderType: orderType!,
-        discount: discountAmount,
-        discountType,
-        discountValue,
-        discountReason: discountValue > 0 ? discountReason : undefined,
-      });
-      if (order) {
-        toast.success(`Order ${order.orderNumber} placed!`, {
-          description: `Total: ${formatPrice(order.total)}`,
+    try {
+      if (isEditingExistingOrder && currentEditingOrderId) {
+        order = await updateOrder(currentEditingOrderId, {
+          paymentMethod,
+          customerName: customerName || undefined,
+          tableId: selectedTableId || undefined,
+          waiterId: selectedWaiterId || undefined,
+          orderType: orderType!,
+          discount: discountAmount,
+          discountType,
+          discountValue,
+          discountReason: discountValue > 0 ? discountReason : undefined,
         });
+        if (order) {
+          toast.success('Order updated successfully!');
+        }
+      } else {
+        order = await completeOrder({
+          paymentMethod,
+          customerName: customerName || undefined,
+          tableId: selectedTableId || undefined,
+          waiterId: selectedWaiterId || undefined,
+          orderType: orderType!,
+          discount: discountAmount,
+          discountType,
+          discountValue,
+          discountReason: discountValue > 0 ? discountReason : undefined,
+        });
+        if (order) {
+          toast.success(`Order ${order.orderNumber} placed!`, {
+            description: `Total: ${formatPrice(order.total)}`,
+          });
+        }
       }
+    } catch (error) {
+      console.error('handleCompleteOrder error:', error);
+      toast.error('Failed to process order. Please try again.');
+      return;
     }
 
     if (order) {
@@ -220,6 +232,8 @@ export default function POS() {
       setDiscountType('fixed');
       setDiscountValue(0);
       setDiscountReason('');
+    } else {
+      toast.error('Failed to complete order. Please try again.');
     }
   };
 
