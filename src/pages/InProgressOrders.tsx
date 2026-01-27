@@ -126,7 +126,7 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
     setShowCancelDialog(true);
   };
 
-  const handleCancelOrder = () => {
+  const handleCancelOrder = async () => {
     const correctPassword = settings.security?.cancelOrderPassword || '12345';
     
     if (cancelPassword !== correctPassword) {
@@ -135,7 +135,7 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
     }
 
     if (selectedOrder) {
-      cancelOrder(selectedOrder.id);
+      await cancelOrder(selectedOrder.id);
       toast.success(`Order ${selectedOrder.orderNumber} cancelled`);
     }
 

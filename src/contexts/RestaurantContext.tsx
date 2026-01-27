@@ -357,14 +357,14 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
   
   const settleOrderAction = useCallback(async (orderId: string) => {
     const order = data.orders.find((o) => o.id === orderId);
-    await actions.settleOrder(orderId, order?.tableId);
-    data.refetch();
+    await actions.settleOrder(orderId, order?.tableId || undefined);
+    await data.refetch();
   }, [data.orders, actions, data.refetch]);
   
   const cancelOrderAction = useCallback(async (orderId: string) => {
     const order = data.orders.find((o) => o.id === orderId);
-    await actions.cancelOrder(orderId, order?.tableId, order?.items, data.menuItems, data.ingredients);
-    data.refetch();
+    await actions.cancelOrder(orderId, order?.tableId || undefined, order?.items, data.menuItems, data.ingredients);
+    await data.refetch();
   }, [data.orders, data.menuItems, data.ingredients, actions, data.refetch]);
   
   const addStoreStockAction = useCallback(async (ingredientId: string, quantity: number, unitCost: number) => {
