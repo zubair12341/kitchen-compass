@@ -147,7 +147,7 @@ export default function POS() {
     setShowCheckout(true);
   };
 
-  const handleCancelOrder = () => {
+  const handleCancelOrder = async () => {
     const correctPassword = settings.security?.cancelOrderPassword || '12345';
     
     if (cancelPassword !== correctPassword) {
@@ -156,11 +156,8 @@ export default function POS() {
     }
     
     if (currentEditingOrderId) {
-      // Cancel existing order
-      cancelOrder(currentEditingOrderId);
-      if (selectedTableId) {
-        freeTable(selectedTableId);
-      }
+      // Cancel existing order - cancelOrder will also free the table
+      await cancelOrder(currentEditingOrderId);
       toast.success('Order cancelled');
     } else {
       // Just clear the cart for new orders

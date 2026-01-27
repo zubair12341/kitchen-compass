@@ -268,7 +268,16 @@ export function useSupabaseActions() {
   };
 
   const freeTable = async (tableId: string) => {
-    await updateTable(tableId, { status: 'available', currentOrderId: undefined });
+    // Use null instead of undefined to properly clear the field in Supabase
+    const { error } = await supabase
+      .from('restaurant_tables')
+      .update({ status: 'available', current_order_id: null })
+      .eq('id', tableId);
+
+    if (error) {
+      toast.error('Failed to free table');
+      throw error;
+    }
   };
 
   // Waiter actions

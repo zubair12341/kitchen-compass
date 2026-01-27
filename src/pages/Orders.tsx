@@ -16,7 +16,7 @@ import { exportToCSV } from '@/lib/csvExport';
 import { printWithImages } from '@/hooks/usePrintWithImages';
 
 export default function Orders() {
-  const { orders, settings, cancelOrder, freeTable, tables } = useRestaurant();
+  const { orders, settings, cancelOrder } = useRestaurant();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -83,7 +83,7 @@ export default function Orders() {
     setShowCancelDialog(true);
   };
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
     if (!orderToCancel) return;
     
     if (cancelPassword !== settings.security?.cancelOrderPassword) {
@@ -92,14 +92,8 @@ export default function Orders() {
       return;
     }
 
-    if (orderToCancel.tableId) {
-      const table = tables.find(t => t.id === orderToCancel.tableId);
-      if (table) {
-        freeTable(orderToCancel.tableId);
-      }
-    }
-
-    cancelOrder(orderToCancel.id);
+    // Cancel order - this will also free the table if needed
+    await cancelOrder(orderToCancel.id);
     toast.success(`Order ${orderToCancel.orderNumber} cancelled`);
     setShowCancelDialog(false);
     setOrderToCancel(null);
