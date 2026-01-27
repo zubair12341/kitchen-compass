@@ -63,7 +63,6 @@ export default function POS() {
     updateOrder,
     loadOrderToCart,
     cancelOrder,
-    freeTable,
     settleOrder,
   } = useRestaurant();
 
