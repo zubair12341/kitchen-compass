@@ -17,6 +17,18 @@ import {
 
 const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`;
 
+const extractSupabaseErrorMessage = (err: unknown) => {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  // supabase-js PostgrestError / FunctionsHttpError often has message
+  if (typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string') return (err as any).message;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return 'Unknown error';
+  }
+};
+
 export function useSupabaseActions() {
   // Ingredient actions
   const addIngredient = async (ingredient: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -249,7 +261,8 @@ export function useSupabaseActions() {
       .eq('id', id);
 
     if (error) {
-      toast.error('Failed to update table');
+      console.error('Failed to update table:', error);
+      toast.error(`Failed to update table: ${error.message}`);
       throw error;
     }
   };
@@ -264,19 +277,48 @@ export function useSupabaseActions() {
   };
 
   const occupyTable = async (tableId: string, orderId: string) => {
-    await updateTable(tableId, { status: 'occupied', currentOrderId: orderId });
+    try {
+      await updateTable(tableId, { status: 'occupied', currentOrderId: orderId });
+    } catch (err) {
+      // Fallback through backend helper (helps in cases where client update fails intermittently)
+      const { data, error } = await supabase.functions.invoke('table-update', {
+        body: { action: 'occupy', tableId, orderId },
+      });
+
+      if (error || !data?.success) {
+        const msg = extractSupabaseErrorMessage(error) || data?.error || 'Unknown error';
+        console.error('Fallback occupyTable failed:', { error, data });
+        toast.error(`Failed to update table: ${msg}`);
+        throw error ?? new Error(msg);
+      }
+    }
   };
 
   const freeTable = async (tableId: string) => {
-    // Use null instead of undefined to properly clear the field in Supabase
-    const { error } = await supabase
-      .from('restaurant_tables')
-      .update({ status: 'available', current_order_id: null })
-      .eq('id', tableId);
+    try {
+      // Use null instead of undefined to properly clear the field in Supabase
+      const { error } = await supabase
+        .from('restaurant_tables')
+        .update({ status: 'available', current_order_id: null })
+        .eq('id', tableId);
 
-    if (error) {
-      toast.error('Failed to free table');
-      throw error;
+      if (error) {
+        console.error('Failed to free table:', error);
+        toast.error(`Failed to free table: ${error.message}`);
+        throw error;
+      }
+    } catch (err) {
+      // Fallback through backend helper
+      const { data, error } = await supabase.functions.invoke('table-update', {
+        body: { action: 'free', tableId },
+      });
+
+      if (error || !data?.success) {
+        const msg = extractSupabaseErrorMessage(error) || data?.error || 'Unknown error';
+        console.error('Fallback freeTable failed:', { error, data });
+        toast.error(`Failed to free table: ${msg}`);
+        throw error ?? new Error(msg);
+      }
     }
   };
 

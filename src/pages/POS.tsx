@@ -64,6 +64,7 @@ export default function POS() {
     loadOrderToCart,
     cancelOrder,
     freeTable,
+    settleOrder,
   } = useRestaurant();
 
   const [orderType, setOrderType] = useState<OrderTypeSelection>(null);
@@ -224,11 +225,9 @@ export default function POS() {
   };
 
   const handleSettleAndClose = async () => {
-    if (completedOrder && completedOrder.tableId) {
-      // Free the table - the settleOrder action will handle status update
-      await freeTable(completedOrder.tableId);
-      toast.success('Order completed and table freed!');
-    }
+    if (!completedOrder) return;
+    await settleOrder(completedOrder.id);
+    toast.success('Order settled and table freed!');
     setCompletedOrder(null);
     handleBackToOrderType();
   };
@@ -741,7 +740,7 @@ export default function POS() {
 
       {/* Checkout Dialog */}
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditingExistingOrder ? 'Update Order' : 'Complete Order'}</DialogTitle>
           </DialogHeader>
@@ -997,7 +996,7 @@ export default function POS() {
 
       {/* Order Completed Dialog */}
       <Dialog open={!!completedOrder} onOpenChange={() => setCompletedOrder(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center">
               {completedOrder?.orderType === 'dine-in' ? 'Order Placed!' : 'Order Placed!'}
