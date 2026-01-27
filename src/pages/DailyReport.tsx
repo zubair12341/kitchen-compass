@@ -29,7 +29,7 @@ import { exportToCSV } from '@/lib/csvExport';
 import { cn } from '@/lib/utils';
 
 export default function DailyReport() {
-  const { orders, menuItems, menuCategories, settings } = useRestaurantStore();
+  const { orders, menuItems, menuCategories, settings } = useRestaurant();
 
   // Get business day settings
   const cutoffHour = settings.businessDay?.cutoffHour ?? 5;

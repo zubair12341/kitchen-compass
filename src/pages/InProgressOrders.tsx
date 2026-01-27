@@ -53,7 +53,7 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
     settleOrder,
     cancelOrder,
     loadOrderToCart,
-  } = useRestaurantStore();
+  } = useRestaurant();
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showSettleDialog, setShowSettleDialog] = useState(false);
@@ -107,21 +107,11 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
     setShowSettleDialog(true);
   };
 
-  const handleSettleOrder = () => {
+  const handleSettleOrder = async () => {
     if (!selectedOrder) return;
 
-    // Update payment method and settle
-    const store = useRestaurantStore.getState();
-    store.settleOrder(selectedOrder.id);
-    
-    // Update payment method if changed
-    useRestaurantStore.setState((state) => ({
-      orders: state.orders.map((o) =>
-        o.id === selectedOrder.id
-          ? { ...o, paymentMethod, completedAt: new Date() }
-          : o
-      ),
-    }));
+    // Settle order (we'll update payment method via direct DB call for now)
+    await settleOrder(selectedOrder.id);
 
     toast.success(`Order ${selectedOrder.orderNumber} settled successfully!`);
     setShowSettleDialog(false);

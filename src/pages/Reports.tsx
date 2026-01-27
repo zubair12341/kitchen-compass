@@ -11,7 +11,7 @@ import { exportToCSV } from '@/lib/csvExport';
 const COLORS = ['#f97316', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#8b5cf6'];
 
 export default function Reports() {
-  const { orders, menuItems, ingredients, menuCategories, settings } = useRestaurantStore();
+  const { orders, menuItems, ingredients, menuCategories, settings } = useRestaurant();
 
   // Get business day settings
   const cutoffHour = settings.businessDay?.cutoffHour ?? 5;
