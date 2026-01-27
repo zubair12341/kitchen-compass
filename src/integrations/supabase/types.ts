@@ -214,6 +214,7 @@ export type Database = {
           created_by: string | null
           customer_name: string | null
           discount: number
+          discount_reason: string | null
           discount_type: string
           discount_value: number
           id: string
@@ -235,6 +236,7 @@ export type Database = {
           created_by?: string | null
           customer_name?: string | null
           discount?: number
+          discount_reason?: string | null
           discount_type?: string
           discount_value?: number
           id?: string
@@ -256,6 +258,7 @@ export type Database = {
           created_by?: string | null
           customer_name?: string | null
           discount?: number
+          discount_reason?: string | null
           discount_type?: string
           discount_value?: number
           id?: string
@@ -435,6 +438,100 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "stock_purchases_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_removals: {
+        Row: {
+          created_at: string
+          id: string
+          ingredient_id: string
+          location: string
+          quantity: number
+          reason: string
+          removed_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingredient_id: string
+          location?: string
+          quantity?: number
+          reason: string
+          removed_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingredient_id?: string
+          location?: string
+          quantity?: number
+          reason?: string
+          removed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_removals_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "ingredients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_sales: {
+        Row: {
+          cost_per_unit: number
+          created_at: string
+          customer_name: string | null
+          id: string
+          ingredient_id: string
+          notes: string | null
+          profit: number
+          quantity: number
+          sale_date: string
+          sale_price: number
+          sold_by: string | null
+          total_cost: number
+          total_sale: number
+        }
+        Insert: {
+          cost_per_unit?: number
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          ingredient_id: string
+          notes?: string | null
+          profit?: number
+          quantity?: number
+          sale_date?: string
+          sale_price?: number
+          sold_by?: string | null
+          total_cost?: number
+          total_sale?: number
+        }
+        Update: {
+          cost_per_unit?: number
+          created_at?: string
+          customer_name?: string | null
+          id?: string
+          ingredient_id?: string
+          notes?: string | null
+          profit?: number
+          quantity?: number
+          sale_date?: string
+          sale_price?: number
+          sold_by?: string | null
+          total_cost?: number
+          total_sale?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_sales_ingredient_id_fkey"
             columns: ["ingredient_id"]
             isOneToOne: false
             referencedRelation: "ingredients"

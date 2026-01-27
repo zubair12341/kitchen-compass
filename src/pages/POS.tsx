@@ -22,6 +22,7 @@ import {
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -79,6 +80,7 @@ export default function POS() {
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [discountType, setDiscountType] = useState<DiscountType>('fixed');
   const [discountValue, setDiscountValue] = useState(0);
+  const [discountReason, setDiscountReason] = useState('');
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
   const isEditingExistingOrder = !!currentEditingOrderId;
@@ -116,6 +118,7 @@ export default function POS() {
       if (result?.order) {
         setDiscountType(result.order.discountType || 'fixed');
         setDiscountValue(result.order.discountValue || 0);
+        setDiscountReason(result.order.discountReason || '');
       }
       toast.info('Editing existing order for Table ' + table.number);
     }
@@ -129,6 +132,7 @@ export default function POS() {
     setSelectedWaiterId('');
     setDiscountType('fixed');
     setDiscountValue(0);
+    setDiscountReason('');
   };
 
   const handleCheckout = () => {
@@ -188,6 +192,7 @@ export default function POS() {
         discount: discountAmount,
         discountType,
         discountValue,
+        discountReason: discountValue > 0 ? discountReason : undefined,
       });
       if (order) {
         toast.success('Order updated successfully!');
@@ -202,6 +207,7 @@ export default function POS() {
         discount: discountAmount,
         discountType,
         discountValue,
+        discountReason: discountValue > 0 ? discountReason : undefined,
       });
       if (order) {
         toast.success(`Order ${order.orderNumber} placed!`, {
@@ -216,6 +222,7 @@ export default function POS() {
       setCustomerName('');
       setDiscountType('fixed');
       setDiscountValue(0);
+      setDiscountReason('');
     }
   };
 
@@ -802,9 +809,18 @@ export default function POS() {
                 />
               </div>
               {discountAmount > 0 && (
-                <p className="text-sm text-green-600">
-                  Discount amount: -{formatPrice(discountAmount)}
-                </p>
+                <>
+                  <p className="text-sm text-green-600">
+                    Discount amount: -{formatPrice(discountAmount)}
+                  </p>
+                  <Textarea
+                    placeholder="Reason for discount (e.g., loyal customer, complaint resolution, promotion)"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                    className="mt-2"
+                    rows={2}
+                  />
+                </>
               )}
             </div>
 
