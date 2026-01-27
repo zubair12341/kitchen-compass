@@ -238,7 +238,10 @@ export function useSupabaseActions() {
     if (updates.capacity !== undefined) dbUpdates.capacity = updates.capacity;
     if (updates.floor !== undefined) dbUpdates.floor = updates.floor;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
-    if (updates.currentOrderId !== undefined) dbUpdates.current_order_id = updates.currentOrderId;
+    // Handle currentOrderId - convert undefined to null for Supabase
+    if ('currentOrderId' in updates) {
+      dbUpdates.current_order_id = updates.currentOrderId || null;
+    }
 
     const { error } = await supabase
       .from('restaurant_tables')
@@ -479,6 +482,107 @@ export function useSupabaseActions() {
     toast.success('Stock transferred to store');
   };
 
+  // Stock removal action (for rejected/wasted items)
+  const removeStock = async (
+    ingredientId: string,
+    quantity: number,
+    reason: string,
+    location: 'store' | 'kitchen',
+    currentIngredient: Ingredient
+  ) => {
+    const stockField = location === 'store' ? 'store_stock' : 'kitchen_stock';
+    const currentStock = location === 'store' ? currentIngredient.storeStock : currentIngredient.kitchenStock;
+
+    if (currentStock < quantity) {
+      toast.error(`Insufficient ${location} stock`);
+      return;
+    }
+
+    // Update ingredient stock
+    const { error: updateError } = await supabase
+      .from('ingredients')
+      .update({
+        [stockField]: currentStock - quantity,
+      })
+      .eq('id', ingredientId);
+
+    if (updateError) {
+      toast.error('Failed to update stock');
+      throw updateError;
+    }
+
+    // Record the removal
+    const { error: removalError } = await supabase
+      .from('stock_removals' as any)
+      .insert({
+        ingredient_id: ingredientId,
+        quantity,
+        reason,
+        location,
+      });
+
+    if (removalError) {
+      console.error('Failed to record removal:', removalError);
+    }
+
+    toast.success('Stock removed successfully');
+  };
+
+  // Direct stock sale action
+  const sellStock = async (
+    ingredientId: string,
+    quantity: number,
+    salePrice: number,
+    customerName: string | undefined,
+    notes: string | undefined,
+    currentIngredient: Ingredient
+  ) => {
+    if (currentIngredient.storeStock < quantity) {
+      toast.error('Insufficient store stock');
+      return;
+    }
+
+    const totalCost = quantity * currentIngredient.costPerUnit;
+    const totalSale = quantity * salePrice;
+    const profit = totalSale - totalCost;
+
+    // Update ingredient stock
+    const { error: updateError } = await supabase
+      .from('ingredients')
+      .update({
+        store_stock: currentIngredient.storeStock - quantity,
+      })
+      .eq('id', ingredientId);
+
+    if (updateError) {
+      toast.error('Failed to update stock');
+      throw updateError;
+    }
+
+    // Record the sale
+    const { error: saleError } = await supabase
+      .from('stock_sales' as any)
+      .insert({
+        ingredient_id: ingredientId,
+        quantity,
+        cost_per_unit: currentIngredient.costPerUnit,
+        sale_price: salePrice,
+        total_cost: totalCost,
+        total_sale: totalSale,
+        profit,
+        customer_name: customerName,
+        notes,
+      });
+
+    if (saleError) {
+      toast.error('Failed to record sale');
+      throw saleError;
+    }
+
+    toast.success(`Stock sold for ${totalSale.toFixed(2)}`);
+    return { totalCost, totalSale, profit };
+  };
+
   // Order actions
   const createOrder = async (
     cart: CartItem[],
@@ -491,6 +595,7 @@ export function useSupabaseActions() {
       discount?: number;
       discountType?: DiscountType;
       discountValue?: number;
+      discountReason?: string;
     },
     settings: RestaurantSettings,
     tables: Table[],
@@ -527,6 +632,7 @@ export function useSupabaseActions() {
         discount,
         discount_type: discountType,
         discount_value: discountValue,
+        discount_reason: orderDetails.discountReason || null,
         total,
         payment_method: orderDetails.paymentMethod,
         customer_name: orderDetails.customerName,
@@ -599,6 +705,7 @@ export function useSupabaseActions() {
       discount?: number;
       discountType?: DiscountType;
       discountValue?: number;
+      discountReason?: string;
     },
     settings: RestaurantSettings,
     tables: Table[],
@@ -631,6 +738,7 @@ export function useSupabaseActions() {
         discount,
         discount_type: discountType,
         discount_value: discountValue,
+        discount_reason: orderDetails.discountReason || null,
         total,
         payment_method: orderDetails.paymentMethod,
         customer_name: orderDetails.customerName,
@@ -754,6 +862,8 @@ export function useSupabaseActions() {
     addStoreStock,
     transferToKitchen,
     transferToStore,
+    removeStock,
+    sellStock,
     // Order actions
     createOrder,
     updateOrder,

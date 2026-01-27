@@ -12,6 +12,8 @@ import {
   RestaurantSettings,
   StockPurchase,
   StockTransfer,
+  StockRemoval,
+  StockSale,
   CartItem,
   LowStockAlert,
   DiscountType,
@@ -70,6 +72,8 @@ interface RestaurantContextType {
   orders: Order[];
   stockPurchases: StockPurchase[];
   stockTransfers: StockTransfer[];
+  stockRemovals: StockRemoval[];
+  stockSales: StockSale[];
   
   // Cart (local state)
   cart: CartItem[];
@@ -104,6 +108,8 @@ interface RestaurantContextType {
   addStoreStock: (ingredientId: string, quantity: number, unitCost: number) => Promise<void>;
   transferToKitchen: (ingredientId: string, quantity: number) => Promise<void>;
   transferToStore: (ingredientId: string, quantity: number) => Promise<void>;
+  removeStock: (ingredientId: string, quantity: number, reason: string, location: 'store' | 'kitchen') => Promise<void>;
+  sellStock: (ingredientId: string, quantity: number, salePrice: number, customerName?: string, notes?: string) => Promise<any>;
   getStockPurchaseHistory: (ingredientId: string) => StockPurchase[];
   
   // Menu actions
@@ -136,6 +142,7 @@ interface RestaurantContextType {
     discount?: number;
     discountType?: DiscountType;
     discountValue?: number;
+    discountReason?: string;
   }) => Promise<Order | null>;
   updateOrder: (orderId: string, orderDetails: {
     paymentMethod: 'cash' | 'card' | 'mobile';
@@ -146,6 +153,7 @@ interface RestaurantContextType {
     discount?: number;
     discountType?: DiscountType;
     discountValue?: number;
+    discountReason?: string;
   }) => Promise<Order | null>;
   settleOrder: (orderId: string) => Promise<void>;
   cancelOrder: (orderId: string) => Promise<void>;
@@ -383,6 +391,23 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     }
   }, [data.ingredients, actions, data.refetch]);
   
+  const removeStockAction = useCallback(async (ingredientId: string, quantity: number, reason: string, location: 'store' | 'kitchen') => {
+    const ingredient = data.ingredients.find((i) => i.id === ingredientId);
+    if (ingredient) {
+      await actions.removeStock(ingredientId, quantity, reason, location, ingredient);
+      data.refetch();
+    }
+  }, [data.ingredients, actions, data.refetch]);
+  
+  const sellStockAction = useCallback(async (ingredientId: string, quantity: number, salePrice: number, customerName?: string, notes?: string) => {
+    const ingredient = data.ingredients.find((i) => i.id === ingredientId);
+    if (ingredient) {
+      const result = await actions.sellStock(ingredientId, quantity, salePrice, customerName, notes, ingredient);
+      data.refetch();
+      return result;
+    }
+  }, [data.ingredients, actions, data.refetch]);
+  
   const updateSettingsAction = useCallback(async (updates: Partial<RestaurantSettings>) => {
     await actions.updateSettings(updates);
     data.refetch();
@@ -414,6 +439,8 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     orders: data.orders,
     stockPurchases: data.stockPurchases,
     stockTransfers: data.stockTransfers,
+    stockRemovals: data.stockRemovals,
+    stockSales: data.stockSales,
     cart,
     currentEditingOrderId,
     refetch: data.refetch,
@@ -434,6 +461,8 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     addStoreStock: addStoreStockAction,
     transferToKitchen: transferToKitchenAction,
     transferToStore: transferToStoreAction,
+    removeStock: removeStockAction,
+    sellStock: sellStockAction,
     getStockPurchaseHistory,
     addMenuItem: wrapAction(actions.addMenuItem),
     updateMenuItem: wrapAction(actions.updateMenuItem),
@@ -466,8 +495,8 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     getTableOrder, getStockPurchaseHistory, calculateRecipeCost,
     getLowStockAlerts, getTodaysSales, completeOrder, updateOrderAction,
     settleOrderAction, cancelOrderAction, addStoreStockAction,
-    transferToKitchenAction, transferToStoreAction, updateSettingsAction,
-    updateInvoiceSettingsAction, wrapAction,
+    transferToKitchenAction, transferToStoreAction, removeStockAction,
+    sellStockAction, updateSettingsAction, updateInvoiceSettingsAction, wrapAction,
   ]);
   
   return (

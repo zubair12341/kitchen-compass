@@ -97,6 +97,7 @@ export interface Order {
   discount: number;
   discountType: DiscountType;
   discountValue: number; // Original value entered
+  discountReason?: string; // Reason for providing discount
   total: number;
   paymentMethod: 'cash' | 'card' | 'mobile';
   status: 'pending' | 'completed' | 'cancelled' | 'refunded';
@@ -108,6 +109,32 @@ export interface Order {
   orderType: 'dine-in' | 'online' | 'takeaway';
   createdAt: Date;
   completedAt?: Date;
+}
+
+export interface StockRemoval {
+  id: string;
+  ingredientId: string;
+  quantity: number;
+  reason: string;
+  location: 'store' | 'kitchen';
+  removedBy?: string;
+  createdAt: Date;
+}
+
+export interface StockSale {
+  id: string;
+  ingredientId: string;
+  quantity: number;
+  costPerUnit: number;
+  salePrice: number;
+  totalCost: number;
+  totalSale: number;
+  profit: number;
+  customerName?: string;
+  notes?: string;
+  soldBy?: string;
+  saleDate: Date;
+  createdAt: Date;
 }
 
 export interface OrderItem {

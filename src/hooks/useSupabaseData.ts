@@ -14,6 +14,8 @@ import {
   RestaurantSettings,
   StockPurchase,
   StockTransfer,
+  StockRemoval,
+  StockSale,
   RecipeIngredient,
 } from '@/types/restaurant';
 import { toast } from 'sonner';
@@ -113,6 +115,7 @@ const transformOrder = (row: any, items: OrderItem[]): Order => ({
   discount: Number(row.discount),
   discountType: row.discount_type as 'fixed' | 'percentage',
   discountValue: Number(row.discount_value),
+  discountReason: row.discount_reason || undefined,
   total: Number(row.total),
   paymentMethod: row.payment_method as 'cash' | 'card' | 'mobile',
   status: row.status as 'pending' | 'completed' | 'cancelled' | 'refunded',
@@ -155,6 +158,32 @@ const transformStockTransfer = (row: any): StockTransfer => ({
   createdAt: new Date(row.created_at),
 });
 
+const transformStockRemoval = (row: any): StockRemoval => ({
+  id: row.id,
+  ingredientId: row.ingredient_id,
+  quantity: Number(row.quantity),
+  reason: row.reason,
+  location: row.location as 'store' | 'kitchen',
+  removedBy: row.removed_by,
+  createdAt: new Date(row.created_at),
+});
+
+const transformStockSale = (row: any): StockSale => ({
+  id: row.id,
+  ingredientId: row.ingredient_id,
+  quantity: Number(row.quantity),
+  costPerUnit: Number(row.cost_per_unit),
+  salePrice: Number(row.sale_price),
+  totalCost: Number(row.total_cost),
+  totalSale: Number(row.total_sale),
+  profit: Number(row.profit),
+  customerName: row.customer_name,
+  notes: row.notes,
+  soldBy: row.sold_by,
+  saleDate: new Date(row.sale_date),
+  createdAt: new Date(row.created_at),
+});
+
 export function useSupabaseData() {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -168,6 +197,8 @@ export function useSupabaseData() {
   const [settings, setSettings] = useState<RestaurantSettings | null>(null);
   const [stockPurchases, setStockPurchases] = useState<StockPurchase[]>([]);
   const [stockTransfers, setStockTransfers] = useState<StockTransfer[]>([]);
+  const [stockRemovals, setStockRemovals] = useState<StockRemoval[]>([]);
+  const [stockSales, setStockSales] = useState<StockSale[]>([]);
 
   const fetchAll = useCallback(async () => {
     if (!user) {
@@ -190,6 +221,8 @@ export function useSupabaseData() {
         settingsRes,
         purchasesRes,
         transfersRes,
+        removalsRes,
+        salesRes,
       ] = await Promise.all([
         supabase.from('ingredients').select('*').order('name'),
         supabase.from('ingredient_categories' as any).select('*').order('sort_order'),
@@ -198,9 +231,11 @@ export function useSupabaseData() {
         supabase.from('restaurant_tables').select('*').order('table_number'),
         supabase.from('waiters').select('*').order('name'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
-        supabase.from('restaurant_settings').select('*').limit(1).single(),
+        supabase.from('restaurant_settings').select('*').limit(1).maybeSingle(),
         supabase.from('stock_purchases').select('*').order('created_at', { ascending: false }),
         supabase.from('stock_transfers').select('*').order('created_at', { ascending: false }),
+        supabase.from('stock_removals' as any).select('*').order('created_at', { ascending: false }),
+        supabase.from('stock_sales' as any).select('*').order('created_at', { ascending: false }),
       ]);
 
       // Handle ingredients
@@ -246,6 +281,16 @@ export function useSupabaseData() {
       // Handle stock transfers
       if (transfersRes.data) {
         setStockTransfers(transfersRes.data.map(transformStockTransfer));
+      }
+
+      // Handle stock removals
+      if (removalsRes.data) {
+        setStockRemovals(removalsRes.data.map(transformStockRemoval));
+      }
+
+      // Handle stock sales
+      if (salesRes.data) {
+        setStockSales(salesRes.data.map(transformStockSale));
       }
 
       // Handle orders with items
@@ -321,6 +366,8 @@ export function useSupabaseData() {
     settings,
     stockPurchases,
     stockTransfers,
+    stockRemovals,
+    stockSales,
     refetch: fetchAll,
   };
 }
