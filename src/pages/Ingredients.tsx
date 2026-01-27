@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Ingredient } from '@/types/restaurant';
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 
 export default function Ingredients() {
   const { ingredients, ingredientCategories, addIngredient, updateIngredient, deleteIngredient } = useRestaurant();
@@ -25,6 +26,9 @@ export default function Ingredients() {
     storeStock: '',
     kitchenStock: '',
   });
+  
+  const [deleteTarget, setDeleteTarget] = useState<Ingredient | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredIngredients = ingredients.filter((ing) => {
     const matchesSearch = ing.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -101,9 +105,17 @@ export default function Ingredients() {
     setShowDialog(false);
   };
 
-  const handleDelete = (id: string) => {
-    deleteIngredient(id);
-    toast.success('Ingredient deleted');
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteIngredient(deleteTarget.id);
+    } catch (error) {
+      console.error('Failed to delete:', error);
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const getTotalStock = (ing: Ingredient) => ing.storeStock + ing.kitchenStock;
@@ -192,7 +204,7 @@ export default function Ingredients() {
                       <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(ing)}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(ing.id)}>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(ing)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -312,6 +324,16 @@ export default function Ingredients() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete Ingredient?"
+        description={`This will permanently delete "${deleteTarget?.name}" and remove it from all recipes. This action cannot be undone.`}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

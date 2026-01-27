@@ -39,6 +39,16 @@ export interface MenuItem {
   isAvailable: boolean;
   createdAt: Date;
   updatedAt: Date;
+  variants?: MenuItemVariant[];
+}
+
+export interface MenuItemVariant {
+  id: string;
+  menuItemId: string;
+  name: string; // e.g., 'Small', 'Medium', 'Large'
+  price: number;
+  sortOrder: number;
+  isAvailable: boolean;
 }
 
 export interface MenuCategory {
@@ -51,6 +61,7 @@ export interface MenuCategory {
 
 export interface CartItem {
   menuItem: MenuItem;
+  variant?: MenuItemVariant;
   quantity: number;
   notes?: string;
 }
@@ -140,6 +151,8 @@ export interface StockSale {
 export interface OrderItem {
   menuItemId: string;
   menuItemName: string;
+  variantId?: string;
+  variantName?: string;
   quantity: number;
   unitPrice: number;
   total: number;
