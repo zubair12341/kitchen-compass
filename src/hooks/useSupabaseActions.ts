@@ -17,6 +17,11 @@ import {
 
 const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`;
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuid = (value?: string | null) => !!value && UUID_RE.test(value);
+
 const extractSupabaseErrorMessage = (err: unknown) => {
   if (!err) return 'Unknown error';
   if (typeof err === 'string') return err;
@@ -336,6 +341,24 @@ export function useSupabaseActions() {
       console.error('freeTable exception:', err);
       return { success: false, error: extractSupabaseErrorMessage(err) };
     }
+  };
+
+  const resolveTableIdForOrder = async (orderId: string, tableId?: string) => {
+    // Prefer an explicitly provided UUID tableId.
+    if (isUuid(tableId)) return tableId;
+
+    // Fallback: derive table directly from current occupancy.
+    const { data, error } = await supabase
+      .from('restaurant_tables')
+      .select('id')
+      .eq('current_order_id', orderId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('resolveTableIdForOrder error:', error);
+      return undefined;
+    }
+    return data?.id;
   };
 
   // Waiter actions
@@ -843,50 +866,78 @@ export function useSupabaseActions() {
   };
 
   const settleOrder = async (orderId: string, tableId?: string) => {
-    // CRITICAL: Update order status FIRST (most important operation)
-    const { error } = await supabase
+    // Enforce transition: pending -> completed
+    const { data: updated, error } = await supabase
       .from('orders')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
 
     if (error) {
       toast.error('Failed to settle order');
       throw error;
     }
 
-    // Then free the table (non-blocking - don't let table errors break the flow)
-    if (tableId) {
-      try {
-        await freeTable(tableId);
-      } catch (tableErr) {
-        console.error('Failed to free table after settle, continuing:', tableErr);
-        // Don't throw - order is already settled, table will sync on next load
-      }
+    if (!updated) {
+      const { data: existing, error: existingErr } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (existingErr) throw existingErr;
+      throw new Error(
+        existing ? `Cannot settle order from status: ${existing.status}` : 'Order not found'
+      );
+    }
+
+    // Free the table (best-effort) — resolve tableId if caller didn't provide it.
+    try {
+      const resolvedTableId = await resolveTableIdForOrder(orderId, tableId);
+      if (resolvedTableId) await freeTable(resolvedTableId);
+    } catch (tableErr) {
+      console.error('Failed to free table after settle, continuing:', tableErr);
     }
 
     toast.success('Order settled');
   };
 
   const cancelOrder = async (orderId: string, tableId?: string, orderItems?: OrderItem[], menuItems?: MenuItem[], ingredients?: Ingredient[]) => {
-    // CRITICAL: Update order status FIRST (most important operation)
-    const { error } = await supabase
+    // Enforce transition: pending -> cancelled
+    const { data: updated, error } = await supabase
       .from('orders')
       .update({ status: 'cancelled' })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
 
     if (error) {
       toast.error('Failed to cancel order');
       throw error;
     }
 
-    // Then free the table (non-blocking - don't let table errors break the flow)
-    if (tableId) {
-      try {
-        await freeTable(tableId);
-      } catch (tableErr) {
-        console.error('Failed to free table after cancel, continuing:', tableErr);
-        // Don't throw - order is already cancelled, table will sync on next load
-      }
+    if (!updated) {
+      const { data: existing, error: existingErr } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (existingErr) throw existingErr;
+      throw new Error(
+        existing ? `Cannot cancel order from status: ${existing.status}` : 'Order not found'
+      );
+    }
+
+    // Free the table (best-effort) — resolve tableId if caller didn't provide it.
+    try {
+      const resolvedTableId = await resolveTableIdForOrder(orderId, tableId);
+      if (resolvedTableId) await freeTable(resolvedTableId);
+    } catch (tableErr) {
+      console.error('Failed to free table after cancel, continuing:', tableErr);
     }
 
     // Restore kitchen stock (non-blocking)

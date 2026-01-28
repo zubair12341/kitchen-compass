@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Eye, FileText, Calendar, Printer, Users, X, Lock, Download } from 'lucide-react';
+import { Search, Eye, FileText, Calendar, Printer, Users, X, Lock, Download, CheckCircle } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import { exportToCSV } from '@/lib/csvExport';
 import { printWithImages } from '@/hooks/usePrintWithImages';
 
 export default function Orders() {
-  const { orders, settings, cancelOrder } = useRestaurant();
+  const { orders, settings, cancelOrder, settleOrder } = useRestaurant();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -73,8 +73,8 @@ export default function Orders() {
   };
 
   const handleCancelRequest = (order: Order) => {
-    if (order.status === 'cancelled') {
-      toast.error('Order is already cancelled');
+    if (order.status !== 'pending') {
+      toast.error(`Only pending orders can be cancelled (current: ${order.status})`);
       return;
     }
     setOrderToCancel(order);
@@ -309,7 +309,24 @@ export default function Orders() {
                     <Button variant="ghost" size="icon" onClick={() => handlePrintInvoice(order)}>
                       <Printer className="h-4 w-4" />
                     </Button>
-                    {order.status !== 'cancelled' && (
+                    {order.status === 'pending' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={async () => {
+                          try {
+                            await settleOrder(order.id);
+                            toast.success(`Order ${order.orderNumber} settled`);
+                          } catch (e: any) {
+                            toast.error(e?.message || 'Failed to settle order');
+                          }
+                        }}
+                        title="Settle / Close"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {order.status === 'pending' && (
                       <Button 
                         variant="ghost" 
                         size="icon" 
