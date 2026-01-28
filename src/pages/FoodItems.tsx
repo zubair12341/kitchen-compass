@@ -171,8 +171,25 @@ export default function FoodItems() {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{item.description}</p>
+              
+              {/* Show variants if available */}
+              {item.variants && item.variants.length > 0 ? (
+                <div className="mb-3">
+                  <div className="flex flex-wrap gap-2">
+                    {item.variants.sort((a, b) => a.sortOrder - b.sortOrder).map(v => (
+                      <span key={v.id} className="text-sm bg-primary/10 text-primary px-2 py-1 rounded">
+                        {v.name}: {formatPrice(v.price)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-3">
+                  <span className="text-xl font-bold text-primary">{formatPrice(item.price)}</span>
+                </div>
+              )}
+              
               <div className="flex items-center justify-between">
-                <span className="text-xl font-bold text-primary">{formatPrice(item.price)}</span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(item)}>
                     <Edit2 className="h-4 w-4" />
