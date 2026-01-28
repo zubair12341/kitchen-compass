@@ -51,7 +51,7 @@ const transformMenuCategory = (row: any): MenuCategory => ({
   sortOrder: row.sort_order,
 });
 
-const transformMenuItem = (row: any): MenuItem => ({
+const transformMenuItem = (row: any, variants?: any[]): MenuItem => ({
   id: row.id,
   name: row.name,
   description: row.description || '',
@@ -64,6 +64,14 @@ const transformMenuItem = (row: any): MenuItem => ({
   isAvailable: row.is_available,
   createdAt: new Date(row.created_at),
   updatedAt: new Date(row.updated_at),
+  variants: variants?.map(v => ({
+    id: v.id,
+    menuItemId: v.menu_item_id,
+    name: v.name,
+    price: Number(v.price),
+    sortOrder: v.sort_order,
+    isAvailable: v.is_available,
+  })) || [],
 });
 
 const transformTable = (row: any): Table => ({
@@ -214,6 +222,7 @@ export function useSupabaseData() {
         ingredientsRes,
         categoriesRes,
         menuItemsRes,
+        variantsRes,
         tablesRes,
         waitersRes,
         ordersRes,
@@ -226,6 +235,7 @@ export function useSupabaseData() {
         supabase.from('ingredients').select('*').order('name'),
         supabase.from('menu_categories').select('*').order('sort_order'),
         supabase.from('menu_items').select('*').order('name'),
+        supabase.from('menu_item_variants').select('*').order('sort_order'),
         supabase.from('restaurant_tables').select('*').order('table_number'),
         supabase.from('waiters').select('*').order('name'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
@@ -254,9 +264,13 @@ export function useSupabaseData() {
         setMenuCategories(categoriesRes.data.map(transformMenuCategory));
       }
 
-      // Handle menu items
+      // Handle menu items with variants
       if (menuItemsRes.data) {
-        setMenuItems(menuItemsRes.data.map(transformMenuItem));
+        const variantsData = variantsRes.data || [];
+        setMenuItems(menuItemsRes.data.map(item => {
+          const itemVariants = variantsData.filter(v => v.menu_item_id === item.id);
+          return transformMenuItem(item, itemVariants);
+        }));
       }
 
       // Handle tables
