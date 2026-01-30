@@ -45,10 +45,13 @@ export interface MenuItem {
 export interface MenuItemVariant {
   id: string;
   menuItemId: string;
-  name: string; // e.g., 'Small', 'Medium', 'Large'
+  name: string; // e.g., 'Small', 'Medium', 'Large', 'Half', 'Full'
   price: number;
   sortOrder: number;
   isAvailable: boolean;
+  recipe?: RecipeIngredient[];
+  recipeCost?: number;
+  profitMargin?: number;
 }
 
 export interface MenuCategory {

@@ -71,6 +71,9 @@ const transformMenuItem = (row: any, variants?: any[]): MenuItem => ({
     price: Number(v.price),
     sortOrder: v.sort_order,
     isAvailable: v.is_available,
+    recipe: (v.recipe as RecipeIngredient[]) || [],
+    recipeCost: Number(v.recipe_cost || 0),
+    profitMargin: Number(v.profit_margin || 0),
   })) || [],
 });
 
