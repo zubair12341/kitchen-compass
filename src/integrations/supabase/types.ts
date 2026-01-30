@@ -118,6 +118,9 @@ export type Database = {
           menu_item_id: string
           name: string
           price: number
+          profit_margin: number
+          recipe: Json
+          recipe_cost: number
           sort_order: number
         }
         Insert: {
@@ -127,6 +130,9 @@ export type Database = {
           menu_item_id: string
           name: string
           price?: number
+          profit_margin?: number
+          recipe?: Json
+          recipe_cost?: number
           sort_order?: number
         }
         Update: {
@@ -136,6 +142,9 @@ export type Database = {
           menu_item_id?: string
           name?: string
           price?: number
+          profit_margin?: number
+          recipe?: Json
+          recipe_cost?: number
           sort_order?: number
         }
         Relationships: [
