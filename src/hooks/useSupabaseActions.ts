@@ -673,6 +673,24 @@ export function useSupabaseActions() {
     return { totalCost, totalSale, profit };
   };
 
+  // Helper to get recipe for a cart item (considers variant recipes)
+  const getRecipeForCartItem = (cartItem: CartItem): { ingredientId: string; quantity: number }[] => {
+    // If cart item has a variant with its own recipe, use that
+    if (cartItem.variant?.recipe && cartItem.variant.recipe.length > 0) {
+      return cartItem.variant.recipe;
+    }
+    // Otherwise use the parent menu item recipe
+    return cartItem.menuItem.recipe || [];
+  };
+
+  // Helper to get price for a cart item (considers variant price)
+  const getPriceForCartItem = (cartItem: CartItem): number => {
+    if (cartItem.variant) {
+      return cartItem.variant.price;
+    }
+    return cartItem.menuItem.price;
+  };
+
   // Order actions
   const createOrder = async (
     cart: CartItem[],
@@ -694,8 +712,9 @@ export function useSupabaseActions() {
   ) => {
     if (cart.length === 0) return null;
 
+    // Calculate using correct prices (variant or base item)
     const subtotal = cart.reduce(
-      (sum, item) => sum + item.menuItem.price * item.quantity,
+      (sum, item) => sum + getPriceForCartItem(item) * item.quantity,
       0
     );
     const gstEnabled = settings.invoice?.gstEnabled ?? true;
@@ -739,14 +758,18 @@ export function useSupabaseActions() {
       throw orderError;
     }
 
-    // Create order items
+    // Create order items with variant info
     const orderItems = cart.map((item) => ({
       order_id: order.id,
       menu_item_id: item.menuItem.id,
-      menu_item_name: item.menuItem.name,
+      menu_item_name: item.variant 
+        ? `${item.menuItem.name} (${item.variant.name})`
+        : item.menuItem.name,
+      variant_id: item.variant?.id || null,
+      variant_name: item.variant?.name || null,
       quantity: item.quantity,
-      unit_price: item.menuItem.price,
-      total: item.menuItem.price * item.quantity,
+      unit_price: getPriceForCartItem(item),
+      total: getPriceForCartItem(item) * item.quantity,
       notes: item.notes,
     }));
 
@@ -758,19 +781,32 @@ export function useSupabaseActions() {
       console.error('Failed to create order items:', itemsError);
     }
 
-    // Deduct kitchen stock
+    // Deduct kitchen stock based on recipes (variant or base item)
+    // Use atomic updates to prevent race conditions
+    const stockUpdates: { ingredientId: string; quantityToDeduct: number }[] = [];
+    
     for (const cartItem of cart) {
-      for (const recipeItem of cartItem.menuItem.recipe) {
-        const ingredient = ingredients.find((i) => i.id === recipeItem.ingredientId);
-        if (ingredient) {
-          const quantityUsed = recipeItem.quantity * cartItem.quantity;
-          await supabase
-            .from('ingredients')
-            .update({
-              kitchen_stock: Math.max(0, ingredient.kitchenStock - quantityUsed),
-            })
-            .eq('id', recipeItem.ingredientId);
+      const recipe = getRecipeForCartItem(cartItem);
+      for (const recipeItem of recipe) {
+        const existing = stockUpdates.find(u => u.ingredientId === recipeItem.ingredientId);
+        const quantityUsed = recipeItem.quantity * cartItem.quantity;
+        if (existing) {
+          existing.quantityToDeduct += quantityUsed;
+        } else {
+          stockUpdates.push({ ingredientId: recipeItem.ingredientId, quantityToDeduct: quantityUsed });
         }
+      }
+    }
+
+    // Apply stock deductions atomically
+    for (const update of stockUpdates) {
+      const ingredient = ingredients.find((i) => i.id === update.ingredientId);
+      if (ingredient) {
+        const newStock = Math.max(0, ingredient.kitchenStock - update.quantityToDeduct);
+        await supabase
+          .from('ingredients')
+          .update({ kitchen_stock: newStock })
+          .eq('id', update.ingredientId);
       }
     }
 
@@ -865,11 +901,22 @@ export function useSupabaseActions() {
     return order;
   };
 
-  const settleOrder = async (orderId: string, tableId?: string) => {
+  const settleOrder = async (orderId: string, tableId?: string, paymentMethod?: 'cash' | 'card' | 'mobile') => {
+    // Build update payload
+    const updatePayload: any = { 
+      status: 'completed', 
+      completed_at: new Date().toISOString() 
+    };
+    
+    // Update payment method if provided
+    if (paymentMethod) {
+      updatePayload.payment_method = paymentMethod;
+    }
+
     // Enforce transition: pending -> completed
     const { data: updated, error } = await supabase
       .from('orders')
-      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq('id', orderId)
       .eq('status', 'pending')
       .select('id')
@@ -904,7 +951,7 @@ export function useSupabaseActions() {
     toast.success('Order settled');
   };
 
-  const cancelOrder = async (orderId: string, tableId?: string, orderItems?: OrderItem[], menuItems?: MenuItem[], ingredients?: Ingredient[]) => {
+  const cancelOrder = async (orderId: string, tableId?: string) => {
     // Enforce transition: pending -> cancelled
     const { data: updated, error } = await supabase
       .from('orders')
@@ -940,30 +987,84 @@ export function useSupabaseActions() {
       console.error('Failed to free table after cancel, continuing:', tableErr);
     }
 
-    // Restore kitchen stock (non-blocking)
-    if (orderItems && menuItems && ingredients) {
-      try {
-        for (const orderItem of orderItems) {
-          const menuItem = menuItems.find((m) => m.id === orderItem.menuItemId);
-          if (menuItem) {
-            for (const recipeItem of menuItem.recipe) {
-              const ingredient = ingredients.find((i) => i.id === recipeItem.ingredientId);
-              if (ingredient) {
-                const quantityToRestore = recipeItem.quantity * orderItem.quantity;
-                await supabase
-                  .from('ingredients')
-                  .update({
-                    kitchen_stock: ingredient.kitchenStock + quantityToRestore,
-                  })
-                  .eq('id', recipeItem.ingredientId);
-              }
+    // Restore kitchen stock - fetch order items and recipes from DB to ensure accuracy
+    try {
+      // Fetch order items with variant info
+      const { data: orderItems, error: itemsErr } = await supabase
+        .from('order_items')
+        .select('menu_item_id, variant_id, quantity')
+        .eq('order_id', orderId);
+
+      if (itemsErr) {
+        console.error('Failed to fetch order items for stock restoration:', itemsErr);
+      } else if (orderItems && orderItems.length > 0) {
+        // Collect all ingredient quantities to restore
+        const stockRestoreMap: Record<string, number> = {};
+
+        for (const item of orderItems) {
+          let recipe: { ingredientId: string; quantity: number }[] = [];
+
+          // If variant_id exists, fetch variant recipe
+          if (item.variant_id) {
+            const { data: variant } = await supabase
+              .from('menu_item_variants')
+              .select('recipe')
+              .eq('id', item.variant_id)
+              .single();
+            
+            if (variant?.recipe && Array.isArray(variant.recipe) && variant.recipe.length > 0) {
+              recipe = variant.recipe as { ingredientId: string; quantity: number }[];
+            }
+          }
+
+          // If no variant recipe, use menu item recipe
+          if (recipe.length === 0) {
+            const { data: menuItem } = await supabase
+              .from('menu_items')
+              .select('recipe')
+              .eq('id', item.menu_item_id)
+              .single();
+            
+            if (menuItem?.recipe && Array.isArray(menuItem.recipe)) {
+              recipe = menuItem.recipe as { ingredientId: string; quantity: number }[];
+            }
+          }
+
+          // Calculate quantities to restore
+          for (const recipeItem of recipe) {
+            const quantityToRestore = recipeItem.quantity * item.quantity;
+            if (stockRestoreMap[recipeItem.ingredientId]) {
+              stockRestoreMap[recipeItem.ingredientId] += quantityToRestore;
+            } else {
+              stockRestoreMap[recipeItem.ingredientId] = quantityToRestore;
             }
           }
         }
-      } catch (stockErr) {
-        console.error('Failed to restore stock after cancel:', stockErr);
-        // Don't throw - order is already cancelled
+
+        // Fetch current ingredient stock values and update atomically
+        const ingredientIds = Object.keys(stockRestoreMap);
+        if (ingredientIds.length > 0) {
+          const { data: currentIngredients } = await supabase
+            .from('ingredients')
+            .select('id, kitchen_stock')
+            .in('id', ingredientIds);
+
+          if (currentIngredients) {
+            for (const ing of currentIngredients) {
+              const quantityToRestore = stockRestoreMap[ing.id] || 0;
+              const newStock = Number(ing.kitchen_stock) + quantityToRestore;
+              
+              await supabase
+                .from('ingredients')
+                .update({ kitchen_stock: newStock })
+                .eq('id', ing.id);
+            }
+          }
+        }
       }
+    } catch (stockErr) {
+      console.error('Failed to restore stock after cancel:', stockErr);
+      // Don't throw - order is already cancelled
     }
 
     toast.success('Order cancelled');

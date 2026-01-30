@@ -5,6 +5,7 @@ import { useSupabaseActions } from '@/hooks/useSupabaseActions';
 import {
   Ingredient,
   MenuItem,
+  MenuItemVariant,
   MenuCategory,
   Order,
   Table,
@@ -124,11 +125,11 @@ interface RestaurantContextType {
   deleteIngredientCategory: (id: string) => Promise<void>;
   
   // Cart actions
-  addToCart: (menuItem: MenuItem) => void;
-  updateCartItemQuantity: (menuItemId: string, quantity: number) => void;
-  removeFromCart: (menuItemId: string) => void;
+  addToCart: (menuItem: MenuItem, variant?: MenuItemVariant) => void;
+  updateCartItemQuantity: (menuItemId: string, quantity: number, variantId?: string) => void;
+  removeFromCart: (menuItemId: string, variantId?: string) => void;
   clearCart: () => void;
-  addCartItemNote: (menuItemId: string, note: string) => void;
+  addCartItemNote: (menuItemId: string, note: string, variantId?: string) => void;
   loadOrderToCart: (orderId: string) => { order: Order; waiterId?: string } | null;
   getOrderById: (orderId: string) => Order | undefined;
   setCurrentEditingOrderId: (orderId: string | null) => void;
@@ -156,7 +157,7 @@ interface RestaurantContextType {
     discountValue?: number;
     discountReason?: string;
   }) => Promise<Order | null>;
-  settleOrder: (orderId: string) => Promise<void>;
+  settleOrder: (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile') => Promise<void>;
   cancelOrder: (orderId: string) => Promise<void>;
   getTableOrder: (tableId: string) => Order | undefined;
   
@@ -234,49 +235,70 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     return order;
   }, []);
   
-  // Cart actions
-  const addToCart = useCallback((menuItem: MenuItem) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.menuItem.id === menuItem.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.menuItem.id === menuItem.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { menuItem, quantity: 1 }];
-    });
+  // Cart actions - support variants with unique cart keys (menuItemId:variantId)
+  const getCartKey = useCallback((menuItemId: string, variantId?: string) => {
+    return variantId ? `${menuItemId}:${variantId}` : menuItemId;
   }, []);
+
+  const addToCart = useCallback((menuItem: MenuItem, variant?: MenuItemVariant) => {
+    setCart((prev) => {
+      const cartKey = getCartKey(menuItem.id, variant?.id);
+      const existing = prev.find((item) => {
+        const itemKey = getCartKey(item.menuItem.id, item.variant?.id);
+        return itemKey === cartKey;
+      });
+      
+      if (existing) {
+        return prev.map((item) => {
+          const itemKey = getCartKey(item.menuItem.id, item.variant?.id);
+          return itemKey === cartKey
+            ? { ...item, quantity: item.quantity + 1 }
+            : item;
+        });
+      }
+      return [...prev, { menuItem, variant, quantity: 1 }];
+    });
+  }, [getCartKey]);
   
-  const updateCartItemQuantity = useCallback((menuItemId: string, quantity: number) => {
+  const updateCartItemQuantity = useCallback((menuItemId: string, quantity: number, variantId?: string) => {
+    const cartKey = getCartKey(menuItemId, variantId);
     if (quantity <= 0) {
-      setCart((prev) => prev.filter((item) => item.menuItem.id !== menuItemId));
+      setCart((prev) => prev.filter((item) => {
+        const itemKey = getCartKey(item.menuItem.id, item.variant?.id);
+        return itemKey !== cartKey;
+      }));
     } else {
       setCart((prev) =>
-        prev.map((item) =>
-          item.menuItem.id === menuItemId ? { ...item, quantity } : item
-        )
+        prev.map((item) => {
+          const itemKey = getCartKey(item.menuItem.id, item.variant?.id);
+          return itemKey === cartKey ? { ...item, quantity } : item;
+        })
       );
     }
-  }, []);
+  }, [getCartKey]);
   
-  const removeFromCart = useCallback((menuItemId: string) => {
-    setCart((prev) => prev.filter((item) => item.menuItem.id !== menuItemId));
-  }, []);
+  const removeFromCart = useCallback((menuItemId: string, variantId?: string) => {
+    const cartKey = getCartKey(menuItemId, variantId);
+    setCart((prev) => prev.filter((item) => {
+      const itemKey = getCartKey(item.menuItem.id, item.variant?.id);
+      return itemKey !== cartKey;
+    }));
+  }, [getCartKey]);
   
   const clearCart = useCallback(() => {
     setCart([]);
     setCurrentEditingOrderId(null);
   }, []);
   
-  const addCartItemNote = useCallback((menuItemId: string, note: string) => {
+  const addCartItemNote = useCallback((menuItemId: string, note: string, variantId?: string) => {
+    const cartKey = getCartKey(menuItemId, variantId);
     setCart((prev) =>
-      prev.map((item) =>
-        item.menuItem.id === menuItemId ? { ...item, notes: note } : item
-      )
+      prev.map((item) => {
+        const itemKey = getCartKey(item.menuItem.id, item.variant?.id);
+        return itemKey === cartKey ? { ...item, notes: note } : item;
+      })
     );
-  }, []);
+  }, [getCartKey]);
   
   const loadOrderToCart = useCallback((orderId: string) => {
     const order = data.orders.find((o) => o.id === orderId);
@@ -286,8 +308,15 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     order.items.forEach((item) => {
       const menuItem = data.menuItems.find((m) => m.id === item.menuItemId);
       if (menuItem) {
+        // Find variant if variantId exists
+        let variant: MenuItemVariant | undefined;
+        if (item.variantId && menuItem.variants) {
+          variant = menuItem.variants.find((v) => v.id === item.variantId);
+        }
+        
         cartItems.push({
           menuItem,
+          variant,
           quantity: item.quantity,
           notes: item.notes,
         });
@@ -441,11 +470,11 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     }
   }, [cart, settings, data.tables, data.waiters, actions, clearCart, data.refetch, fetchOrderWithItems]);
   
-  const settleOrderAction = useCallback(async (orderId: string) => {
+  const settleOrderAction = useCallback(async (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile') => {
     try {
       const order = data.orders.find((o) => o.id === orderId);
       const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
-      await actions.settleOrder(orderId, safeTableId);
+      await actions.settleOrder(orderId, safeTableId, paymentMethod);
       await data.refetch();
     } catch (error) {
       console.error('settleOrder error:', error);
@@ -457,13 +486,13 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     try {
       const order = data.orders.find((o) => o.id === orderId);
       const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
-      await actions.cancelOrder(orderId, safeTableId, order?.items, data.menuItems, data.ingredients);
+      await actions.cancelOrder(orderId, safeTableId);
       await data.refetch();
     } catch (error) {
       console.error('cancelOrder error:', error);
       throw error;
     }
-  }, [data.orders, data.menuItems, data.ingredients, actions, data.refetch]);
+  }, [data.orders, actions, data.refetch]);
   
   const addStoreStockAction = useCallback(async (ingredientId: string, quantity: number, unitCost: number) => {
     const ingredient = data.ingredients.find((i) => i.id === ingredientId);

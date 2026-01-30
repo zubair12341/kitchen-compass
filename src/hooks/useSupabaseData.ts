@@ -143,6 +143,8 @@ const transformOrder = (row: any, items: OrderItem[]): Order => ({
 const transformOrderItem = (row: any): OrderItem => ({
   menuItemId: row.menu_item_id,
   menuItemName: row.menu_item_name,
+  variantId: row.variant_id || undefined,
+  variantName: row.variant_name || undefined,
   quantity: row.quantity,
   unitPrice: Number(row.unit_price),
   total: Number(row.total),
