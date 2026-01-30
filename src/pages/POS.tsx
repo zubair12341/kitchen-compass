@@ -92,9 +92,12 @@ export default function POS() {
     return matchesSearch && matchesCategory && item.isAvailable;
   });
 
-  // Calculate totals
+  // Calculate totals - use variant price if available
   const gstEnabled = settings.invoice?.gstEnabled ?? true;
-  const subtotal = cart.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => {
+    const price = item.variant ? item.variant.price : item.menuItem.price;
+    return sum + price * item.quantity;
+  }, 0);
   const tax = gstEnabled ? subtotal * (settings.taxRate / 100) : 0;
   const discountAmount = discountType === 'percentage' 
     ? (subtotal * discountValue) / 100 
@@ -292,13 +295,18 @@ export default function POS() {
           <div class="items">
             ${cart
               .map(
-                (item) => `
+                (item) => {
+                  const displayName = item.variant 
+                    ? `${item.menuItem.name} (${item.variant.name})`
+                    : item.menuItem.name;
+                  return `
               <div class="item">
-                <span class="item-name">${item.menuItem.name}</span>
+                <span class="item-name">${displayName}</span>
                 <span class="item-qty">x${item.quantity}</span>
               </div>
               ${item.notes ? `<div class="notes">Note: ${item.notes}</div>` : ''}
-            `
+            `;
+                }
               )
               .join('')}
           </div>
@@ -670,41 +678,49 @@ export default function POS() {
             </div>
           ) : (
             <div className="space-y-3">
-              {cart.map((item) => (
-                <div key={item.menuItem.id} className="cart-item">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm truncate">{item.menuItem.name}</h4>
-                    <p className="text-sm text-muted-foreground">{formatPrice(item.menuItem.price)} each</p>
+              {cart.map((item) => {
+                const cartKey = item.variant ? `${item.menuItem.id}:${item.variant.id}` : item.menuItem.id;
+                const displayName = item.variant 
+                  ? `${item.menuItem.name} (${item.variant.name})`
+                  : item.menuItem.name;
+                const displayPrice = item.variant ? item.variant.price : item.menuItem.price;
+                
+                return (
+                  <div key={cartKey} className="cart-item">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm truncate">{displayName}</h4>
+                      <p className="text-sm text-muted-foreground">{formatPrice(displayPrice)} each</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity - 1, item.variant?.id)}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-8 text-center font-medium">{item.quantity}</span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity + 1, item.variant?.id)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeFromCart(item.menuItem.id, item.variant?.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity - 1)}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-8 text-center font-medium">{item.quantity}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity + 1)}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => removeFromCart(item.menuItem.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -110,13 +110,13 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
   const handleSettleOrder = async () => {
     if (!selectedOrder) return;
 
-    // Settle order (we'll update payment method via direct DB call for now)
-    await settleOrder(selectedOrder.id);
+    // Settle order with selected payment method
+    await settleOrder(selectedOrder.id, paymentMethod);
 
     toast.success(`Order ${selectedOrder.orderNumber} settled successfully!`);
     setShowSettleDialog(false);
     setSelectedOrder(null);
-    printInvoice(selectedOrder);
+    printInvoice({ ...selectedOrder, paymentMethod });
   };
 
   const handleOpenCancelDialog = (order: Order) => {
