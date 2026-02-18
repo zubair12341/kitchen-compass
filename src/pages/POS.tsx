@@ -82,6 +82,7 @@ export default function POS() {
   const [discountValue, setDiscountValue] = useState(0);
   const [discountReason, setDiscountReason] = useState('');
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const [variantPickerItem, setVariantPickerItem] = useState<import('@/types/restaurant').MenuItem | null>(null);
 
   const isEditingExistingOrder = !!currentEditingOrderId;
 
@@ -610,7 +611,13 @@ export default function POS() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => addToCart(item)}
+                  onClick={() => {
+                    if (item.variants && item.variants.length > 0) {
+                      setVariantPickerItem(item);
+                    } else {
+                      addToCart(item);
+                    }
+                  }}
                   className={cn('pos-grid-item', cartItem && 'selected')}
                 >
                   {cartItem && (
@@ -622,7 +629,13 @@ export default function POS() {
                     {menuCategories.find((c) => c.id === item.categoryId)?.icon || '🍽️'}
                   </div>
                   <h4 className="font-medium text-sm text-center line-clamp-2">{item.name}</h4>
-                  <p className="text-sm font-bold text-primary mt-1">{formatPrice(item.price)}</p>
+                  {item.variants && item.variants.length > 0 ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatPrice(Math.min(...item.variants.map(v => v.price)))} - {formatPrice(Math.max(...item.variants.map(v => v.price)))}
+                    </p>
+                  ) : (
+                    <p className="text-sm font-bold text-primary mt-1">{formatPrice(item.price)}</p>
+                  )}
                 </button>
               );
             })}
@@ -1087,6 +1100,30 @@ export default function POS() {
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Selection Dialog */}
+      <Dialog open={!!variantPickerItem} onOpenChange={(open) => !open && setVariantPickerItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{variantPickerItem?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            {variantPickerItem?.variants?.filter(v => v.isAvailable).map((variant) => (
+              <button
+                key={variant.id}
+                onClick={() => {
+                  addToCart(variantPickerItem!, variant);
+                  setVariantPickerItem(null);
+                }}
+                className="flex items-center justify-between p-4 rounded-lg border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all text-left"
+              >
+                <span className="font-medium">{variant.name}</span>
+                <span className="font-bold text-primary">{formatPrice(variant.price)}</span>
+              </button>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
