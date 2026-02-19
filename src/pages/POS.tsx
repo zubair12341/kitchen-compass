@@ -1016,12 +1016,18 @@ export default function POS() {
               )}
             </div>
             <div className="border-t border-dashed pt-3 space-y-2">
-              {cart.map((item) => (
-                <div key={item.menuItem.id} className="flex justify-between">
-                  <span>{item.menuItem.name}</span>
-                  <span className="font-bold">x{item.quantity}</span>
-                </div>
-              ))}
+              {cart.map((item) => {
+                const displayName = item.variant
+                  ? `${item.menuItem.name} (${item.variant.name})`
+                  : item.menuItem.name;
+                const cartKey = item.variant ? `${item.menuItem.id}:${item.variant.id}` : item.menuItem.id;
+                return (
+                  <div key={cartKey} className="flex justify-between">
+                    <span>{displayName}</span>
+                    <span className="font-bold">x{item.quantity}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
           <DialogFooter>
