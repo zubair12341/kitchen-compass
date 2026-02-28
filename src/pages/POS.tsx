@@ -333,7 +333,7 @@ export default function POS() {
     if (!completedOrder) return;
 
     const logoHtml = settings.invoice?.showLogo && settings.invoice?.logoUrl 
-      ? `<div style="text-align: center; margin-bottom: 10px;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
+      ? `<div style="text-align: center; margin: 0;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
       : '';
 
     const invoiceHtml = `
@@ -341,7 +341,8 @@ export default function POS() {
         <head>
           <title>Invoice - ${completedOrder.orderNumber}</title>
           <style>
-            body { font-family: 'Courier New', monospace; padding: 8px; max-width: 250px; margin: 0 auto; font-weight: bold; color: #000; }
+            html, body { margin: 0; padding: 0; width: 58mm; }
+            body { font-family: 'Courier New', monospace; width: 58mm; max-width: 58mm; margin: 0; padding: 0; font-weight: bold; color: #000; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
             .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
             .header h1 { font-size: 15px; margin: 0; font-weight: 900; }
@@ -356,7 +357,7 @@ export default function POS() {
             .footer { text-align: center; font-size: 10px; margin-top: 8px; font-weight: bold; }
             @media print { 
               @page { margin: 0; size: 58mm auto; }
-              body { margin: 0; padding: 4px; } 
+              html, body { margin: 0 !important; padding: 0 !important; width: 58mm; }
             }
           </style>
         </head>
