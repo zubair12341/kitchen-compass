@@ -170,7 +170,7 @@ interface RestaurantContextType {
 const RestaurantContext = createContext<RestaurantContextType | null>(null);
 
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const isUuid = (value?: string | null) => !!value && UUID_RE.test(value);
 
@@ -473,7 +473,7 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
   const settleOrderAction = useCallback(async (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile', explicitTableId?: string) => {
     try {
       const order = data.orders.find((o) => o.id === orderId);
-      const safeTableId = isUuid(explicitTableId) ? explicitTableId : (isUuid(order?.tableId) ? order?.tableId : undefined);
+      const safeTableId = explicitTableId || order?.tableId || undefined;
       await actions.settleOrder(orderId, safeTableId, paymentMethod);
       await data.refetch();
     } catch (error) {

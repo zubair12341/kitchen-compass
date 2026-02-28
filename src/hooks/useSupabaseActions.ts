@@ -18,7 +18,7 @@ import {
 const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`;
 
 const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const isUuid = (value?: string | null) => !!value && UUID_RE.test(value);
 
@@ -940,10 +940,35 @@ export function useSupabaseActions() {
       );
     }
 
-    // Free the table (best-effort) — resolve tableId if caller didn't provide it.
+    // Free the table (reliable path) — try explicit tableId, current occupancy, then order.table_id.
     try {
+      const candidateTableIds = new Set<string>();
+
+      if (isUuid(tableId)) {
+        candidateTableIds.add(tableId);
+      }
+
       const resolvedTableId = await resolveTableIdForOrder(orderId, tableId);
-      if (resolvedTableId) await freeTable(resolvedTableId);
+      if (resolvedTableId && isUuid(resolvedTableId)) {
+        candidateTableIds.add(resolvedTableId);
+      }
+
+      const { data: orderRow } = await supabase
+        .from('orders')
+        .select('table_id')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (isUuid(orderRow?.table_id)) {
+        candidateTableIds.add(orderRow.table_id);
+      }
+
+      for (const tableIdToFree of candidateTableIds) {
+        const result = await freeTable(tableIdToFree);
+        if (result?.success) {
+          break;
+        }
+      }
     } catch (tableErr) {
       console.error('Failed to free table after settle, continuing:', tableErr);
     }
