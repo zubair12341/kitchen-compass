@@ -157,7 +157,7 @@ interface RestaurantContextType {
     discountValue?: number;
     discountReason?: string;
   }) => Promise<Order | null>;
-  settleOrder: (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile') => Promise<void>;
+  settleOrder: (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile', tableId?: string) => Promise<void>;
   cancelOrder: (orderId: string) => Promise<void>;
   getTableOrder: (tableId: string) => Order | undefined;
   
@@ -470,10 +470,10 @@ export function RestaurantProvider({ children }: { children: React.ReactNode }) 
     }
   }, [cart, settings, data.tables, data.waiters, actions, clearCart, data.refetch, fetchOrderWithItems]);
   
-  const settleOrderAction = useCallback(async (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile') => {
+  const settleOrderAction = useCallback(async (orderId: string, paymentMethod?: 'cash' | 'card' | 'mobile', explicitTableId?: string) => {
     try {
       const order = data.orders.find((o) => o.id === orderId);
-      const safeTableId = isUuid(order?.tableId) ? order?.tableId : undefined;
+      const safeTableId = isUuid(explicitTableId) ? explicitTableId : (isUuid(order?.tableId) ? order?.tableId : undefined);
       await actions.settleOrder(orderId, safeTableId, paymentMethod);
       await data.refetch();
     } catch (error) {
