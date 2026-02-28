@@ -157,19 +157,23 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
         <head>
           <title>Invoice - ${order.orderNumber}</title>
           <style>
-            body { font-family: 'Courier New', monospace; padding: 20px; max-width: 300px; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-            .header h1 { font-size: 16px; margin: 0; }
-            .header p { font-size: 11px; margin: 3px 0; }
-            .info { margin: 10px 0; font-size: 12px; }
-            .info-row { display: flex; justify-content: space-between; margin: 3px 0; }
-            .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin: 10px 0; }
-            .item { display: flex; justify-content: space-between; margin: 5px 0; font-size: 12px; }
-            .totals { margin: 10px 0; font-size: 12px; }
-            .total-row { display: flex; justify-content: space-between; margin: 3px 0; }
-            .grand-total { font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; }
-            .footer { text-align: center; font-size: 10px; margin-top: 15px; }
-            @media print { body { margin: 0; padding: 10px; } }
+            body { font-family: 'Courier New', monospace; padding: 8px; max-width: 250px; margin: 0 auto; font-weight: bold; color: #000; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
+            .header h1 { font-size: 15px; margin: 0; font-weight: 900; }
+            .header p { font-size: 11px; margin: 2px 0; font-weight: bold; }
+            .info { margin: 6px 0; font-size: 11px; }
+            .info-row { display: flex; justify-content: space-between; margin: 2px 0; }
+            .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 6px 0; }
+            .item { display: flex; justify-content: space-between; margin: 3px 0; font-size: 11px; font-weight: bold; }
+            .totals { margin: 6px 0; font-size: 11px; }
+            .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; }
+            .grand-total { font-size: 14px; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px; }
+            .footer { text-align: center; font-size: 10px; margin-top: 8px; font-weight: bold; }
+            @media print { 
+              @page { margin: 0; size: 58mm auto; }
+              body { margin: 0; padding: 4px; } 
+            }
           </style>
         </head>
         <body>
