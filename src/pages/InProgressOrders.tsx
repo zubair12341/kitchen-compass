@@ -149,7 +149,7 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
     const gstEnabled = settings.invoice?.gstEnabled ?? true;
     
     const logoHtml = settings.invoice?.showLogo && settings.invoice?.logoUrl 
-      ? `<div style="text-align: center; margin: 0;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="max-height: 60px; object-fit: contain;" /></div>` 
+      ? `<div style="text-align: center; margin: 0; padding: 0; line-height: 0;"><img src="${settings.invoice.logoUrl}" alt="Logo" style="display: block; margin: 0 auto; max-height: 60px; object-fit: contain;" /></div>` 
       : '';
     
     const invoiceHtml = `
@@ -157,23 +157,23 @@ export default function InProgressOrders({ orderType }: InProgressOrdersProps) {
         <head>
           <title>Invoice - ${order.orderNumber}</title>
           <style>
-            html, body { margin: 0; padding: 0; width: 58mm; }
-            body { font-family: 'Courier New', monospace; width: 58mm; max-width: 58mm; margin: 0; padding: 0; font-weight: bold; color: #000; }
+            html, body { margin: 0 !important; padding: 0 !important; width: 58mm; }
+            body { font-family: 'Courier New', monospace; width: 58mm; max-width: 58mm; margin: 0; padding: 0; font-weight: 700; color: #000; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
+            .header { text-align: center; border-bottom: 2px dashed #000; padding: 0 0 4px 0; margin: 0 0 4px 0; }
             .header h1 { font-size: 15px; margin: 0; font-weight: 900; }
-            .header p { font-size: 11px; margin: 2px 0; font-weight: bold; }
-            .info { margin: 6px 0; font-size: 11px; }
+            .header p { font-size: 11px; margin: 2px 0 0 0; font-weight: 700; }
+            .info { margin: 4px 0; font-size: 11px; }
             .info-row { display: flex; justify-content: space-between; margin: 2px 0; }
-            .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 6px 0; }
-            .item { display: flex; justify-content: space-between; margin: 3px 0; font-size: 11px; font-weight: bold; }
-            .totals { margin: 6px 0; font-size: 11px; }
-            .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold; }
+            .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin: 4px 0; }
+            .item { display: flex; justify-content: space-between; margin: 2px 0; font-size: 11px; font-weight: 700; }
+            .totals { margin: 4px 0; font-size: 11px; }
+            .total-row { display: flex; justify-content: space-between; margin: 2px 0; font-weight: 700; }
             .grand-total { font-size: 14px; font-weight: 900; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px; }
-            .footer { text-align: center; font-size: 10px; margin-top: 8px; font-weight: bold; }
+            .footer { text-align: center; font-size: 10px; margin-top: 4px; font-weight: 700; }
             @media print { 
-              @page { margin: 0; size: 58mm auto; }
-              html, body { margin: 0 !important; padding: 0 !important; width: 58mm; }
+              @page { margin: 0 !important; size: 58mm auto; }
+              html, body { margin: 0 !important; padding: 0 !important; width: 58mm !important; }
             }
           </style>
         </head>

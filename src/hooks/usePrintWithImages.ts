@@ -16,8 +16,12 @@ export function printWithImages(html: string, onPrinted?: () => void): void {
     return;
   }
 
+  const fullHtml = html.trimStart().toLowerCase().startsWith('<!doctype')
+    ? html
+    : `<!DOCTYPE html>${html}`;
+
   iframeDoc.open();
-  iframeDoc.write(html);
+  iframeDoc.write(fullHtml);
   iframeDoc.close();
 
   // Find all images in the iframe
