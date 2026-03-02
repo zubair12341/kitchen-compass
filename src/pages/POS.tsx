@@ -86,9 +86,21 @@ export default function POS() {
 
   const isEditingExistingOrder = !!currentEditingOrderId;
 
+  const normalizeSearchText = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   // Filter menu items
   const filteredItems = menuItems.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const categoryName = menuCategories.find((category) => category.id === item.categoryId)?.name || '';
+    const variantNames = (item.variants || []).map((variant) => variant.name).join(' ');
+    const haystack = normalizeSearchText(`${item.name} ${item.description || ''} ${categoryName} ${variantNames}`);
+    const normalizedQuery = normalizeSearchText(searchQuery);
+
+    const matchesSearch = !normalizedQuery || haystack.includes(normalizedQuery);
     const matchesCategory = !selectedCategory || item.categoryId === selectedCategory;
     return matchesSearch && matchesCategory && item.isAvailable;
   });
