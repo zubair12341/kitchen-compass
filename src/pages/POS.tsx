@@ -589,8 +589,8 @@ export default function POS() {
           </div>
         )}
 
-        {/* Search and Categories */}
-        <div className="mb-4 space-y-4">
+        {/* Search */}
+        <div className="mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -600,69 +600,117 @@ export default function POS() {
               className="pl-10"
             />
           </div>
-
-          {/* Category Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            <Button
-              variant={selectedCategory === null ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedCategory(null)}
-              className="shrink-0"
-            >
-              All
-            </Button>
-            {menuCategories.map((category) => (
-              <Button
-                key={category.id}
-                variant={selectedCategory === category.id ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedCategory(category.id)}
-                className="shrink-0 gap-1"
-              >
-                <span>{category.icon}</span>
-                {category.name}
-              </Button>
-            ))}
-          </div>
         </div>
 
-        {/* Menu Grid */}
+        {/* Category Grid + Items */}
         <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {filteredItems.map((item) => {
-              const cartItem = cart.find((c) => c.menuItem.id === item.id);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    if (item.variants && item.variants.length > 0) {
-                      setVariantPickerItem(item);
-                    } else {
-                      addToCart(item);
-                    }
-                  }}
-                  className={cn('pos-grid-item', cartItem && 'selected')}
-                >
-                  {cartItem && (
-                    <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                      {cartItem.quantity}
-                    </span>
-                  )}
-                  <div className="text-2xl mb-2">
-                    {menuCategories.find((c) => c.id === item.categoryId)?.icon || '🍽️'}
-                  </div>
-                  <h4 className="font-medium text-sm text-center line-clamp-2">{item.name}</h4>
-                  {item.variants && item.variants.length > 0 ? (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatPrice(Math.min(...item.variants.map(v => v.price)))} - {formatPrice(Math.max(...item.variants.map(v => v.price)))}
-                    </p>
-                  ) : (
-                    <p className="text-sm font-bold text-primary mt-1">{formatPrice(item.price)}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {/* When searching, show flat results */}
+          {searchQuery ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {filteredItems.map((item) => {
+                const cartItem = cart.find((c) => c.menuItem.id === item.id);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      if (item.variants && item.variants.length > 0) {
+                        setVariantPickerItem(item);
+                      } else {
+                        addToCart(item);
+                      }
+                    }}
+                    className={cn('pos-grid-item', cartItem && 'selected')}
+                  >
+                    {cartItem && (
+                      <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                        {cartItem.quantity}
+                      </span>
+                    )}
+                    <div className="text-2xl mb-2">
+                      {menuCategories.find((c) => c.id === item.categoryId)?.icon || '🍽️'}
+                    </div>
+                    <h4 className="font-medium text-sm text-center line-clamp-2">{item.name}</h4>
+                    {item.variants && item.variants.length > 0 ? (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatPrice(Math.min(...item.variants.map(v => v.price)))} - {formatPrice(Math.max(...item.variants.map(v => v.price)))}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-bold text-primary mt-1">{formatPrice(item.price)}</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : !selectedCategory ? (
+            /* Category Grid */
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {menuCategories.map((category) => {
+                const categoryItemCount = menuItems.filter(
+                  (item) => item.categoryId === category.id && item.isAvailable
+                ).length;
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className="pos-grid-item group h-28"
+                  >
+                    <div className="text-3xl mb-1">{category.icon}</div>
+                    <h4 className="font-semibold text-sm text-center line-clamp-1">{category.name}</h4>
+                    <p className="text-xs text-muted-foreground">{categoryItemCount} items</p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            /* Items inside selected category */
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedCategory(null)}>
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Categories
+                </Button>
+                <span className="text-lg font-semibold flex items-center gap-2">
+                  <span>{menuCategories.find((c) => c.id === selectedCategory)?.icon}</span>
+                  {menuCategories.find((c) => c.id === selectedCategory)?.name}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {filteredItems.map((item) => {
+                  const cartItem = cart.find((c) => c.menuItem.id === item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (item.variants && item.variants.length > 0) {
+                          setVariantPickerItem(item);
+                        } else {
+                          addToCart(item);
+                        }
+                      }}
+                      className={cn('pos-grid-item', cartItem && 'selected')}
+                    >
+                      {cartItem && (
+                        <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                          {cartItem.quantity}
+                        </span>
+                      )}
+                      <div className="text-2xl mb-2">
+                        {menuCategories.find((c) => c.id === item.categoryId)?.icon || '🍽️'}
+                      </div>
+                      <h4 className="font-medium text-sm text-center line-clamp-2">{item.name}</h4>
+                      {item.variants && item.variants.length > 0 ? (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatPrice(Math.min(...item.variants.map(v => v.price)))} - {formatPrice(Math.max(...item.variants.map(v => v.price)))}
+                        </p>
+                      ) : (
+                        <p className="text-sm font-bold text-primary mt-1">{formatPrice(item.price)}</p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

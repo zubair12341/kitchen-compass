@@ -23,6 +23,7 @@ import StaffManagement from "./pages/StaffManagement";
 import RestaurantSettings from "./pages/Settings";
 import DirectStockSales from "./pages/DirectStockSales";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => (
           <RestaurantProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route element={<MainLayout />}>
                 <Route path="/" element={<ProtectedDashboard />} />
                 <Route path="/pos" element={<POS />} />
