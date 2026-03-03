@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Users, Plus, Edit2, Trash2, ChefHat, Shield, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Users, Plus, Edit2, Trash2, ChefHat, Shield, ShieldCheck, AlertCircle, UserPlus, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -13,6 +14,17 @@ import { toast } from 'sonner';
 import { Table, Waiter } from '@/types/restaurant';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
+import { supabase } from '@/integrations/supabase/client';
+
+interface StaffUser {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  role: 'admin' | 'manager' | 'pos_user';
+  isActive: boolean;
+  createdAt: string;
+}
 
 export default function StaffManagement() {
   const {
@@ -20,6 +32,7 @@ export default function StaffManagement() {
     addTable, updateTable, deleteTable,
     addWaiter, updateWaiter, deleteWaiter,
   } = useRestaurant();
+  const { userRole } = useAuth();
 
   // Table state
   const [showTableDialog, setShowTableDialog] = useState(false);
@@ -30,11 +43,102 @@ export default function StaffManagement() {
   const [showWaiterDialog, setShowWaiterDialog] = useState(false);
   const [editingWaiter, setEditingWaiter] = useState<Waiter | null>(null);
   const [waiterForm, setWaiterForm] = useState({ name: '', phone: '', isActive: true });
+
+  // Staff state
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [showStaffDialog, setShowStaffDialog] = useState(false);
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [staffForm, setStaffForm] = useState({
+    name: '', email: '', password: '', phone: '', role: 'pos_user' as 'admin' | 'manager' | 'pos_user',
+  });
+  const [deleteStaffTarget, setDeleteStaffTarget] = useState<StaffUser | null>(null);
   
   // Delete confirmation state
   const [deleteTableTarget, setDeleteTableTarget] = useState<Table | null>(null);
   const [deleteWaiterTarget, setDeleteWaiterTarget] = useState<Waiter | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fetch staff users
+  const fetchStaff = useCallback(async () => {
+    if (userRole !== 'admin') return;
+    setStaffLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-staff', {
+        body: { action: 'list' },
+      });
+      if (error) throw error;
+      if (data?.staff) setStaffUsers(data.staff);
+    } catch (err: any) {
+      console.error('Failed to fetch staff:', err);
+      toast.error('Failed to load staff users');
+    } finally {
+      setStaffLoading(false);
+    }
+  }, [userRole]);
+
+  useEffect(() => {
+    fetchStaff();
+  }, [fetchStaff]);
+
+  // Create staff user
+  const handleCreateStaff = async () => {
+    if (!staffForm.name.trim() || !staffForm.email.trim() || !staffForm.password.trim()) {
+      toast.error('Name, email, and password are required');
+      return;
+    }
+    if (staffForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setStaffSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-staff', {
+        body: {
+          action: 'create',
+          email: staffForm.email,
+          password: staffForm.password,
+          name: staffForm.name,
+          phone: staffForm.phone || null,
+          role: staffForm.role,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Staff user created successfully');
+      setShowStaffDialog(false);
+      setStaffForm({ name: '', email: '', password: '', phone: '', role: 'pos_user' });
+      fetchStaff();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create staff user');
+    } finally {
+      setStaffSaving(false);
+    }
+  };
+
+  // Delete staff user
+  const handleDeleteStaffConfirm = async () => {
+    if (!deleteStaffTarget) return;
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-staff', {
+        body: { action: 'delete', userId: deleteStaffTarget.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Staff user deleted');
+      setDeleteStaffTarget(null);
+      fetchStaff();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete staff user');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Table handlers
   const handleOpenTableDialog = (table?: Table) => {
@@ -144,6 +248,17 @@ export default function StaffManagement() {
       case 'ground': return 'Ground Floor';
       case 'first': return 'First Floor';
       case 'family': return 'Family Hall';
+    }
+  };
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive"><ShieldCheck className="h-3 w-3" /> Admin</span>;
+      case 'manager':
+        return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-warning/10 text-warning"><Shield className="h-3 w-3" /> Manager</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary"><Users className="h-3 w-3" /> POS User</span>;
     }
   };
 
@@ -353,63 +468,128 @@ export default function StaffManagement() {
           </Card>
         </TabsContent>
 
-        {/* Staff Tab - Placeholder for Supabase Auth */}
+        {/* Staff & Users Tab */}
         <TabsContent value="staff">
           <Card className="section-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Staff & Users
-              </CardTitle>
-              <CardDescription>Manage admins, managers, and POS users</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Staff & Users
+                </CardTitle>
+                <CardDescription>Manage admins, managers, and POS users</CardDescription>
+              </div>
+              {userRole === 'admin' && (
+                <Button
+                  onClick={() => {
+                    setStaffForm({ name: '', email: '', password: '', phone: '', role: 'pos_user' });
+                    setShowPassword(false);
+                    setShowStaffDialog(true);
+                  }}
+                  className="gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Add Staff User
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Staff Users Managed via Authentication</AlertTitle>
-                <AlertDescription>
-                  Staff users (Admin, Manager, POS User) are managed through the authentication system. 
-                  New staff accounts can be created by an Admin using the backend. User roles are stored 
-                  in the database and control access permissions throughout the application.
-                </AlertDescription>
-              </Alert>
+              {userRole !== 'admin' ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Admin Access Required</AlertTitle>
+                  <AlertDescription>
+                    Only administrators can manage staff users. Contact your admin.
+                  </AlertDescription>
+                </Alert>
+              ) : staffLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  {/* Role Legend */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-lg border p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-2 rounded-lg bg-destructive/10">
+                          <ShieldCheck className="h-5 w-5 text-destructive" />
+                        </div>
+                        <span className="font-semibold">Admin</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Full access including staff management and settings.
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-2 rounded-lg bg-warning/10">
+                          <Shield className="h-5 w-5 text-warning" />
+                        </div>
+                        <span className="font-semibold">Manager</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Operational access: POS, menu, stock, orders, reports.
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <Users className="h-5 w-5 text-primary" />
+                        </div>
+                        <span className="font-semibold">POS User</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Limited to POS operations and viewing orders only.
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Role Legend */}
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-lg border p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-lg bg-destructive/10">
-                      <ShieldCheck className="h-5 w-5 text-destructive" />
-                    </div>
-                    <span className="font-semibold">Admin</span>
+                  {/* Staff Users Table */}
+                  <div className="overflow-hidden rounded-lg border">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Role</th>
+                          <th className="text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {staffUsers.map((staff) => (
+                          <tr key={staff.id}>
+                            <td>
+                              <span className="font-medium">{staff.name}</span>
+                            </td>
+                            <td className="text-muted-foreground">{staff.email}</td>
+                            <td className="text-muted-foreground">{staff.phone || '—'}</td>
+                            <td>{getRoleBadge(staff.role)}</td>
+                            <td>
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => setDeleteStaffTarget(staff)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Full access to all features including staff management, settings, and reports.
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-lg bg-warning/10">
-                      <Shield className="h-5 w-5 text-warning" />
+                  {staffUsers.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No staff users found.
                     </div>
-                    <span className="font-semibold">Manager</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Operational access to POS, menu, stock, orders, and reports. Cannot manage staff.
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Users className="h-5 w-5 text-primary" />
-                    </div>
-                    <span className="font-semibold">POS User</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Limited to POS operations and viewing orders only.
-                  </p>
-                </div>
-              </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -504,7 +684,101 @@ export default function StaffManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
+      {/* Create Staff Dialog */}
+      <Dialog open={showStaffDialog} onOpenChange={setShowStaffDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Create Staff User
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="staff-name">Full Name *</Label>
+              <Input
+                id="staff-name"
+                value={staffForm.name}
+                onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
+                placeholder="Muhammad Ali"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staff-email">Email *</Label>
+              <Input
+                id="staff-email"
+                type="email"
+                value={staffForm.email}
+                onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                placeholder="staff@dhaba.pk"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staff-password">Password *</Label>
+              <div className="relative">
+                <Input
+                  id="staff-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={staffForm.password}
+                  onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="staff-phone">Phone</Label>
+              <Input
+                id="staff-phone"
+                value={staffForm.phone}
+                onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
+                placeholder="+92 300 1234567"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Role *</Label>
+              <Select value={staffForm.role} onValueChange={(v: 'admin' | 'manager' | 'pos_user') => setStaffForm({ ...staffForm, role: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">
+                    <span className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-destructive" /> Admin
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="manager">
+                    <span className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-warning" /> Manager
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="pos_user">
+                    <span className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" /> POS User
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStaffDialog(false)} disabled={staffSaving}>Cancel</Button>
+            <Button onClick={handleCreateStaff} disabled={staffSaving} className="gap-2">
+              {staffSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              {staffSaving ? 'Creating...' : 'Create User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Table Confirmation */}
       <DeleteConfirmDialog
         open={!!deleteTableTarget}
@@ -522,6 +796,16 @@ export default function StaffManagement() {
         title="Delete Waiter?"
         itemName={deleteWaiterTarget?.name}
         onConfirm={handleDeleteWaiterConfirm}
+        isLoading={isDeleting}
+      />
+
+      {/* Delete Staff Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteStaffTarget}
+        onOpenChange={(open) => !open && setDeleteStaffTarget(null)}
+        title="Delete Staff User?"
+        itemName={deleteStaffTarget ? `${deleteStaffTarget.name} (${deleteStaffTarget.email})` : undefined}
+        onConfirm={handleDeleteStaffConfirm}
         isLoading={isDeleting}
       />
     </div>
