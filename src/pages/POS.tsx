@@ -18,7 +18,15 @@ import {
   Users,
   Percent,
   XCircle,
+  ShoppingCart,
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +73,9 @@ export default function POS() {
     cancelOrder,
     settleOrder,
   } = useRestaurant();
+
+  const isMobile = useIsMobile();
+  const [showMobileCart, setShowMobileCart] = useState(false);
 
   const [orderType, setOrderType] = useState<OrderTypeSelection>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -435,10 +446,10 @@ export default function POS() {
             <h1 className="text-3xl font-display font-bold text-foreground">Select Order Type</h1>
             <p className="text-muted-foreground mt-2">Choose how you want to process this order</p>
           </div>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <button
               onClick={() => setOrderType('dine-in')}
-              className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
+              className="flex flex-col items-center justify-center gap-3 p-6 sm:gap-4 sm:p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
             >
               <div className="p-4 rounded-full bg-orange-100 text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-colors">
                 <UtensilsCrossed className="h-10 w-10" />
@@ -450,7 +461,7 @@ export default function POS() {
             </button>
             <button
               onClick={() => setOrderType('online')}
-              className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
+              className="flex flex-col items-center justify-center gap-3 p-6 sm:gap-4 sm:p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
             >
               <div className="p-4 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
                 <Wifi className="h-10 w-10" />
@@ -462,7 +473,7 @@ export default function POS() {
             </button>
             <button
               onClick={() => setOrderType('takeaway')}
-              className="flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
+              className="flex flex-col items-center justify-center gap-3 p-6 sm:gap-4 sm:p-8 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all group"
             >
               <div className="p-4 rounded-full bg-green-100 text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors">
                 <ShoppingBag className="h-10 w-10" />
@@ -535,9 +546,147 @@ export default function POS() {
     );
   }
 
+  // Cart content - reused in desktop sidebar and mobile sheet
+  const cartContent = (
+    <>
+      {/* Cart Header */}
+      <div className="border-b border-border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">
+            {isEditingExistingOrder ? 'Edit Order' : 'Current Order'}
+          </h2>
+          <div className="flex gap-2">
+            {cart.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleOpenCancelDialog}
+                className="text-destructive hover:text-destructive"
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+            )}
+            {cart.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearCart}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">{cart.length} items</p>
+      </div>
+
+      {/* Cart Items */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <Search className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="font-medium">No items in cart</p>
+            <p className="text-sm text-muted-foreground">Select items from the menu</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {cart.map((item) => {
+              const cartKey = item.variant ? `${item.menuItem.id}:${item.variant.id}` : item.menuItem.id;
+              const displayName = item.variant 
+                ? `${item.menuItem.name} (${item.variant.name})`
+                : item.menuItem.name;
+              const displayPrice = item.variant ? item.variant.price : item.menuItem.price;
+              
+              return (
+                <div key={cartKey} className="cart-item">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm truncate">{displayName}</h4>
+                    <p className="text-sm text-muted-foreground">{formatPrice(displayPrice)} each</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity - 1, item.variant?.id)}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-8 text-center font-medium">{item.quantity}</span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity + 1, item.variant?.id)}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => removeFromCart(item.menuItem.id, item.variant?.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Cart Summary */}
+      <div className="border-t border-border p-4 space-y-4">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>{formatPrice(subtotal)}</span>
+          </div>
+          {gstEnabled && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
+              <span>{formatPrice(tax)}</span>
+            </div>
+          )}
+          {discountAmount > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>Discount {discountType === 'percentage' && `(${discountValue}%)`}</span>
+              <span>-{formatPrice(discountAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
+            <span>Total</span>
+            <span>{formatPrice(total)}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={handlePrintKitchenInvoice}
+            disabled={cart.length === 0}
+          >
+            <ChefHat className="h-4 w-4 mr-2" />
+            Kitchen
+          </Button>
+          <Button className="flex-1" onClick={handleCheckout} disabled={cart.length === 0}>
+            {isEditingExistingOrder ? 'Update Order' : 'Checkout'}
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+
   // Main POS Screen
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-6 animate-fade-in">
+    <div className="flex h-[calc(100vh-7rem)] gap-4 lg:gap-6 animate-fade-in relative">
       {/* Left Panel - Menu */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header with Back Button */}
@@ -572,7 +721,7 @@ export default function POS() {
         {orderType === 'dine-in' && (
           <div className="mb-4">
             <Select value={selectedWaiterId} onValueChange={setSelectedWaiterId}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full sm:w-64">
                 <Users className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Select Waiter" />
               </SelectTrigger>
@@ -603,7 +752,7 @@ export default function POS() {
         </div>
 
         {/* Category Grid + Items */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-20 lg:pb-0">
           {/* When searching, show flat results */}
           {searchQuery ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -714,142 +863,32 @@ export default function POS() {
         </div>
       </div>
 
-      {/* Right Panel - Cart */}
-      <div className="w-96 flex flex-col rounded-xl border border-border bg-card overflow-hidden">
-        {/* Cart Header */}
-        <div className="border-b border-border p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              {isEditingExistingOrder ? 'Edit Order' : 'Current Order'}
-            </h2>
-            <div className="flex gap-2">
-              {/* Cancel order button - available for both new and existing orders */}
-              {cart.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleOpenCancelDialog}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Cancel Order
-                </Button>
-              )}
-              {cart.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearCart}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">{cart.length} items</p>
-        </div>
-
-        {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="rounded-full bg-muted p-4 mb-4">
-                <Search className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <p className="font-medium">No items in cart</p>
-              <p className="text-sm text-muted-foreground">Select items from the menu</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {cart.map((item) => {
-                const cartKey = item.variant ? `${item.menuItem.id}:${item.variant.id}` : item.menuItem.id;
-                const displayName = item.variant 
-                  ? `${item.menuItem.name} (${item.variant.name})`
-                  : item.menuItem.name;
-                const displayPrice = item.variant ? item.variant.price : item.menuItem.price;
-                
-                return (
-                  <div key={cartKey} className="cart-item">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm truncate">{displayName}</h4>
-                      <p className="text-sm text-muted-foreground">{formatPrice(displayPrice)} each</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity - 1, item.variant?.id)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-8 text-center font-medium">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => updateCartItemQuantity(item.menuItem.id, item.quantity + 1, item.variant?.id)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => removeFromCart(item.menuItem.id, item.variant?.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Cart Summary */}
-        <div className="border-t border-border p-4 space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatPrice(subtotal)}</span>
-            </div>
-            {gstEnabled && (
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">GST ({settings.taxRate}%)</span>
-                <span>{formatPrice(tax)}</span>
-              </div>
-            )}
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Discount {discountType === 'percentage' && `(${discountValue}%)`}</span>
-                <span>-{formatPrice(discountAmount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
-              <span>Total</span>
-              <span>{formatPrice(total)}</span>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={handlePrintKitchenInvoice}
-              disabled={cart.length === 0}
-            >
-              <ChefHat className="h-4 w-4 mr-2" />
-              Kitchen
-            </Button>
-            <Button className="flex-1" onClick={handleCheckout} disabled={cart.length === 0}>
-              {isEditingExistingOrder ? 'Update Order' : 'Checkout'}
-            </Button>
-          </div>
-        </div>
+      {/* Right Panel - Cart (desktop only) */}
+      <div className="hidden lg:flex w-96 flex-col rounded-xl border border-border bg-card overflow-hidden">
+        {cartContent}
       </div>
+
+      {/* Mobile Floating Cart Button */}
+      <button
+        onClick={() => setShowMobileCart(true)}
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-primary-foreground shadow-lg lg:hidden animate-pulse-glow"
+      >
+        <ShoppingCart className="h-5 w-5" />
+        <span className="font-semibold">{cart.length}</span>
+        {cart.length > 0 && (
+          <span className="text-sm font-medium">· {formatPrice(total)}</span>
+        )}
+      </button>
+
+      {/* Mobile Cart Sheet */}
+      <Sheet open={showMobileCart} onOpenChange={setShowMobileCart}>
+        <SheetContent side="bottom" className="h-[85vh] flex flex-col p-0 rounded-t-2xl">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Cart</SheetTitle>
+          </SheetHeader>
+          {cartContent}
+        </SheetContent>
+      </Sheet>
 
       {/* Checkout Dialog */}
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
