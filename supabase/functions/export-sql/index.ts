@@ -14,6 +14,9 @@ function escapeSQL(val: unknown): string {
   return `'${String(val).replace(/'/g, "''")}'`;
 }
 
+// Columns that reference auth.users and must be NULLed for migration
+const userRefColumns = new Set(['created_by', 'removed_by', 'sold_by']);
+
 function generateInserts(tableName: string, rows: Record<string, unknown>[]): string {
   if (!rows || rows.length === 0) return `-- No data for ${tableName}\n`;
   
@@ -23,7 +26,10 @@ function generateInserts(tableName: string, rows: Record<string, unknown>[]): st
   let sql = `-- ${tableName}: ${rows.length} rows\n`;
   
   for (const row of rows) {
-    const values = columns.map(c => escapeSQL(row[c])).join(", ");
+    const values = columns.map(c => {
+      if (userRefColumns.has(c)) return "NULL";
+      return escapeSQL(row[c]);
+    }).join(", ");
     sql += `INSERT INTO public."${tableName}" (${colList}) VALUES (${values}) ON CONFLICT DO NOTHING;\n`;
   }
   
