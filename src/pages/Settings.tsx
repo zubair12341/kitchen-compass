@@ -315,6 +315,45 @@ export default function RestaurantSettings() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Data Export Card */}
+          <Card className="section-card mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Data Export
+              </CardTitle>
+              <CardDescription>Download a complete copy of all your data for migration or backup</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="font-medium">SQL Export</p>
+                    <p className="text-sm text-muted-foreground">INSERT statements ready to run in a new database SQL Editor</p>
+                  </div>
+                  <Button onClick={handleDownloadSQL} disabled={exportingSQL} variant="outline" className="w-full gap-2">
+                    {exportingSQL ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {exportingSQL ? 'Exporting...' : 'Download SQL'}
+                  </Button>
+                </div>
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="font-medium">JSON Export</p>
+                    <p className="text-sm text-muted-foreground">Complete data dump in JSON format for programmatic use</p>
+                  </div>
+                  <Button onClick={handleDownloadJSON} disabled={exportingJSON} variant="outline" className="w-full gap-2">
+                    {exportingJSON ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {exportingJSON ? 'Exporting...' : 'Download JSON'}
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                <p>📦 Exports include all 14 tables: ingredients, menu categories, menu items, variants, orders, order items, waiters, tables, stock data, expenses, and settings.</p>
+                <p className="mt-1">⚠️ User accounts and roles are NOT included (they are project-specific).</p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Invoice Settings Tab */}
