@@ -55,10 +55,56 @@ export default function RestaurantSettings() {
   // Notifications
   const [lowStockAlert, setLowStockAlert] = useState(true);
   
+  // Export state
+  const [exportingSQL, setExportingSQL] = useState(false);
+  const [exportingJSON, setExportingJSON] = useState(false);
+
   // Categories
   const [newMenuCategoryName, setNewMenuCategoryName] = useState('');
   const [newMenuCategoryIcon, setNewMenuCategoryIcon] = useState('🍽️');
   const [newIngredientCategoryName, setNewIngredientCategoryName] = useState('');
+
+  const handleDownloadSQL = async () => {
+    setExportingSQL(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('export-sql', { method: 'GET' });
+      if (error) throw error;
+      const content = typeof data === 'string' ? data : JSON.stringify(data);
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `data_export_${new Date().toISOString().split('T')[0]}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('SQL export downloaded');
+    } catch (err: any) {
+      toast.error('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setExportingSQL(false);
+    }
+  };
+
+  const handleDownloadJSON = async () => {
+    setExportingJSON(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('export-database', { method: 'GET' });
+      if (error) throw error;
+      const content = JSON.stringify(data, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `data_export_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('JSON export downloaded');
+    } catch (err: any) {
+      toast.error('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setExportingJSON(false);
+    }
+  };
 
   const handleSaveGeneralSettings = () => {
     updateSettings({
