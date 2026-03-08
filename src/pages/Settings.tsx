@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { Save, Building, Bell, Plus, Trash2, FileText, Receipt, Lock, Eye, EyeOff, Clock, Upload, Image } from 'lucide-react';
+import { Save, Building, Bell, Plus, Trash2, FileText, Receipt, Lock, Eye, EyeOff, Clock, Upload, Image, Download, Database, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,10 +55,56 @@ export default function RestaurantSettings() {
   // Notifications
   const [lowStockAlert, setLowStockAlert] = useState(true);
   
+  // Export state
+  const [exportingSQL, setExportingSQL] = useState(false);
+  const [exportingJSON, setExportingJSON] = useState(false);
+
   // Categories
   const [newMenuCategoryName, setNewMenuCategoryName] = useState('');
   const [newMenuCategoryIcon, setNewMenuCategoryIcon] = useState('🍽️');
   const [newIngredientCategoryName, setNewIngredientCategoryName] = useState('');
+
+  const handleDownloadSQL = async () => {
+    setExportingSQL(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('export-sql', { method: 'GET' });
+      if (error) throw error;
+      const content = typeof data === 'string' ? data : JSON.stringify(data);
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `data_export_${new Date().toISOString().split('T')[0]}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('SQL export downloaded');
+    } catch (err: any) {
+      toast.error('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setExportingSQL(false);
+    }
+  };
+
+  const handleDownloadJSON = async () => {
+    setExportingJSON(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('export-database', { method: 'GET' });
+      if (error) throw error;
+      const content = JSON.stringify(data, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `data_export_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('JSON export downloaded');
+    } catch (err: any) {
+      toast.error('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setExportingJSON(false);
+    }
+  };
 
   const handleSaveGeneralSettings = () => {
     updateSettings({
@@ -266,6 +313,45 @@ export default function RestaurantSettings() {
                 <Save className="h-4 w-4" />
                 Save General Settings
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Data Export Card */}
+          <Card className="section-card mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Data Export
+              </CardTitle>
+              <CardDescription>Download a complete copy of all your data for migration or backup</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="font-medium">SQL Export</p>
+                    <p className="text-sm text-muted-foreground">INSERT statements ready to run in a new database SQL Editor</p>
+                  </div>
+                  <Button onClick={handleDownloadSQL} disabled={exportingSQL} variant="outline" className="w-full gap-2">
+                    {exportingSQL ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {exportingSQL ? 'Exporting...' : 'Download SQL'}
+                  </Button>
+                </div>
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="font-medium">JSON Export</p>
+                    <p className="text-sm text-muted-foreground">Complete data dump in JSON format for programmatic use</p>
+                  </div>
+                  <Button onClick={handleDownloadJSON} disabled={exportingJSON} variant="outline" className="w-full gap-2">
+                    {exportingJSON ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {exportingJSON ? 'Exporting...' : 'Download JSON'}
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                <p>📦 Exports include all 14 tables: ingredients, menu categories, menu items, variants, orders, order items, waiters, tables, stock data, expenses, and settings.</p>
+                <p className="mt-1">⚠️ User accounts and roles are NOT included (they are project-specific).</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
